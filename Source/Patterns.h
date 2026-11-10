@@ -44,4 +44,13 @@ inline const PatternPreset* patternPresets (int& count)
     count = (int) (sizeof (p) / sizeof (p[0]));
     return p;
 }
+
+// FX lane par preset (16 pas, 1/16). Lettres : . T F W / \\ H R r < B G M D X (voir laneChars)
+inline const char* presetLanes (int i)
+{
+    static const char* l[] = {
+        "..............T.", "............R...", "..T.....G.......", "..........F...<.",
+        "......r...R...<B", "...............W", "...........T..R/" };
+    return l[i % 7];
+}
 }

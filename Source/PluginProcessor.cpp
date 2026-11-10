@@ -25,6 +25,8 @@ APVTS::ParameterLayout EclipseProcessor::createLayout()
     l.add (std::make_unique<juce::AudioParameterChoice> (pid ("keyTrack"), "Clavier MIDI vers", trk, 0));
 
     juce::StringArray names; for (int i = 0; i < numSamples; ++i) names.add (sampleNames()[i]);
+    names.add ("[ Mon sample ]");
+    l.add (std::make_unique<juce::AudioParameterInt> (pid ("lane_steps"), "FX Lane pas", 2, maxSteps, 16));
     const int defSample[8] = { 0, 3, 6, 7, 10, 13, 16, 22 };
     for (int t = 0; t < numTracks; ++t)
     {
@@ -78,6 +80,10 @@ EclipseProcessor::EclipseProcessor()
         playStep[t] = -1; lastKey[t] = LLONG_MIN;
         for (int s = 0; s < maxSteps; ++s) { stepVel[t][s] = 0; stepFx[t][s] = 0; }
     }
+    pLaneSteps = g ("lane_steps");
+    for (auto& f : laneFx) f = 0;
+    for (auto& u : userData) u = nullptr;
+    formats.registerBasicFormats();
     pBpm = g ("bpm"); pRun = g ("run"); pSwing = g ("swing"); pMaster = g ("master"); pKeyTrack = g ("keyTrack");
     pDlyTime = g ("dlyTime"); pDlyFb = g ("dlyFb"); pDlyTone = g ("dlyTone"); pDlyWob = g ("dlyWob"); pDlyWobRate = g ("dlyWobRate");
     pDlySpread = g ("dlySpread"); pDlySmear = g ("dlySmear"); pDlyDrive = g ("dlyDrive"); pDlyMix = g ("dlyMix");
@@ -92,6 +98,10 @@ void EclipseProcessor::prepareToPlay (double sampleRate, int blockSize)
     sr = sampleRate;
     bank.clear();
     for (int i = 0; i < numSamples; ++i) bank.push_back (generateSample (i, sr));
+    for (int t = 0; t < numTracks; ++t) if (userPath[t].isNotEmpty()) loadUserSample (t, juce::File (userPath[t]), false);
+    ringL.assign ((size_t) (sr * 2.0), 0.f); ringR.assign ((size_t) (sr * 2.0), 0.f);
+    laneFxBuf.assign ((size_t) blockSize, 0); laneProgBuf.assign ((size_t) blockSize, 0.f);
+    ringPos = 0; prevLaneFx = 0; laneMix = 0; lag = 0;
     for (auto& tr : voices) for (auto& v : tr) v = Voice();
     for (auto& k : lastKey) k = LLONG_MIN;
     delay.prepare (sr);
@@ -103,21 +113,38 @@ void EclipseProcessor::prepareToPlay (double sampleRate, int blockSize)
     internalPpq = 0; wasPlaying = false;
 }
 
-void EclipseProcessor::trigger (int t, float vel, int extraSemis, bool reverse, bool chop, bool thrown)
+void EclipseProcessor::trigger (int t, float vel, int extraSemis, int fx)
 {
     if (*tp[t].mute > 0.5f) return;
-    const int si = juce::jlimit (0, numSamples - 1, (int) *tp[t].sample);
-    if (si >= (int) bank.size() || bank[(size_t) si].empty()) return;
+    const int si = juce::jlimit (0, numSamples, (int) *tp[t].sample);
+    const std::vector<float>* d = nullptr;
+    if (si == numSamples) d = userData[t].load();
+    else if (si < (int) bank.size()) d = &bank[(size_t) si];
+    if (d == nullptr || d->empty()) return;
     Voice* best = &voices[t][0];
     for (auto& v : voices[t]) { if (! v.active) { best = &v; break; } if (v.age > best->age) best = &v; }
-    auto& d = bank[(size_t) si];
-    best->data = &d;
-    best->inc = std::pow (2.0, (*tp[t].pitch + extraSemis) / 12.0);
-    best->endPos = std::max (64.0, (double) d.size() * *tp[t].len * (chop ? 0.15 : 1.0));
-    best->endPos = std::min (best->endPos, (double) d.size());
-    best->rev = reverse;
-    if (reverse) { best->pos = best->endPos - 1; best->inc = -best->inc; } else best->pos = 0;
-    best->gain = vel; best->sendBoost = thrown ? 1.0f : 0.0f; best->age = 0; best->active = true;
+    Voice nv;
+    nv.data = d;
+    const double base = std::pow (2.0, (*tp[t].pitch + extraSemis) / 12.0);
+    nv.inc = base;
+    nv.endPos = std::max (64.0, (double) d->size() * *tp[t].len * (fx == FxChop ? 0.15 : 1.0));
+    nv.endPos = std::min (nv.endPos, (double) d->size());
+    nv.rev = (fx == FxReverse);
+    if (nv.rev) { nv.pos = nv.endPos - 1; nv.inc = -nv.inc; }
+    nv.gain = vel; nv.sendBoost = (fx == FxThrow) ? 1.0f : 0.0f; nv.active = true;
+    switch (fx)
+    {
+        case FxTapeStop:  nv.incSlope = -base / (0.45 * sr); break;
+        case FxPitchRise: nv.incSlope = base * 2.5 / (0.5 * sr); break;
+        case FxCrush:     nv.crush = true; break;
+        case FxRing:      nv.ringInc = juce::MathConstants<double>::twoPi * 140.0 / sr; break;
+        case FxLpClose:   nv.lpOn = true; nv.cutoff = 14000.f; nv.cutMul = (float) std::pow (150.0 / 14000.0, 1.0 / (0.35 * sr)); break;
+        case FxLpOpen:    nv.lpOn = true; nv.cutoff = 150.f;   nv.cutMul = (float) std::pow (14000.0 / 150.0, 1.0 / (0.35 * sr)); break;
+        case FxDrive:     nv.drive = true; break;
+        case FxStutter:   nv.loops = 3; nv.loopEnd = std::max (256.0, nv.endPos * 0.125); break;
+        default: break;
+    }
+    *best = nv;
 }
 
 void EclipseProcessor::stepTrack (int t, double ppq, float swing)
@@ -144,15 +171,15 @@ void EclipseProcessor::stepTrack (int t, double ppq, float swing)
     int semis = fx == FxOctUp ? 12 : fx == FxOctDown ? -12 : 0;
     if (fx == FxRandom) { static const int sc[8] = { -12, -7, -5, 0, 3, 5, 7, 12 }; semis = sc[rng.nextInt (8)]; }
     const float v = (vel / 127.0f) * (1.0f - 0.12f * (float) subIdx);
-    trigger (t, v, semis, fx == FxReverse, fx == FxChop, fx == FxThrow);
+    trigger (t, v, semis, fx);
 }
 
 void EclipseProcessor::handleMidi (const juce::MidiMessage& m)
 {
     if (! m.isNoteOn()) return;
     const int n = m.getNoteNumber(); const float v = m.getFloatVelocity();
-    if (n >= 36 && n < 36 + numTracks) trigger (n - 36, v, 0, false, false, false);
-    else trigger (juce::jlimit (0, numTracks - 1, (int) *pKeyTrack), v, n - 60, false, false, false);
+    if (n >= 36 && n < 36 + numTracks) trigger (n - 36, v, 0, FxNone);
+    else trigger (juce::jlimit (0, numTracks - 1, (int) *pKeyTrack), v, n - 60, FxNone);
 }
 
 void EclipseProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
@@ -203,12 +230,23 @@ void EclipseProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     auto* dL = dryBuf.getWritePointer (0); auto* dR = dryBuf.getWritePointer (1);
     auto* rL = rvBuf.getWritePointer (0);  auto* rR = rvBuf.getWritePointer (1);
 
+    if ((int) laneFxBuf.size() < n) { laneFxBuf.assign ((size_t) n, 0); laneProgBuf.assign ((size_t) n, 0.f); }
+    const int laneSteps = juce::jlimit (2, maxSteps, (int) *pLaneSteps);
     auto midiIt = midi.begin();
     for (int i = 0; i < n; ++i)
     {
         while (midiIt != midi.end() && (*midiIt).samplePosition <= i) { handleMidi ((*midiIt).getMessage()); ++midiIt; }
         if (playing) for (int t = 0; t < numTracks; ++t) stepTrack (t, ppq + i * pps, swing);
 
+        int lfx = 0; float lpr = 0;
+        if (playing)
+        {
+            const double lp = (ppq + i * pps) / 0.25; const double li = std::floor (lp);
+            const int ls = (int) (((long long) li % laneSteps + laneSteps) % laneSteps);
+            lfx = laneFx[ls]; lpr = (float) (lp - li); lanePlay = ls;
+        }
+        else lanePlay = -1;
+        laneFxBuf[(size_t) i] = (uint8_t) lfx; laneProgBuf[(size_t) i] = lpr;
         float dlSumL = 0, dlSumR = 0;
         for (int t = 0; t < numTracks; ++t)
             for (auto& v : voices[t])
@@ -218,9 +256,15 @@ void EclipseProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mid
                 const int i0 = std::max (0, (int) v.pos); const int i1 = std::min (i0 + 1, sz - 1);
                 const float fr = (float) (v.pos - i0);
                 float s = d[(size_t) i0] + (d[(size_t) i1] - d[(size_t) i0]) * fr;
-                const double rem = v.rev ? v.pos : v.endPos - v.pos;
+                if (v.crush) { if (--v.crushCnt <= 0) { v.held = std::round (s * 8.0f) / 8.0f; v.crushCnt = 6; } s = v.held; }
+                if (v.ringInc > 0) { v.ringPh += v.ringInc; s *= (float) std::sin (v.ringPh); }
+                if (v.lpOn) { s = v.svf.process (s, v.cutoff, 0.6f, sr, 0); v.cutoff = juce::jlimit (80.0f, 16000.0f, v.cutoff * v.cutMul); }
+                if (v.drive) s = std::tanh (s * 5.0f) * 0.6f;
+                const double lim = v.loops > 0 ? v.loopEnd : v.endPos;
+                const double rem = v.rev ? v.pos : lim - v.pos;
                 const double fadeLen = 128.0 * std::abs (v.inc);
                 float env = rem < fadeLen ? (float) (rem / fadeLen) : 1.0f;
+                if (v.incSlope < 0) env *= (float) juce::jmin (1.0, v.inc / 0.15);
                 if (v.age < 64) env *= (float) v.age / 64.0f;
                 s *= env * v.gain * trackVol[t];
                 const float sL = s * trackGainL[t], sR = s * trackGainR[t];
@@ -229,12 +273,18 @@ void EclipseProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mid
                 dlSumL += sL * ds; dlSumR += sR * ds;
                 rL[i] += sL * trackRev[t]; rR[i] += sR * trackRev[t];
                 v.pos += v.inc; ++v.age;
-                if (v.pos >= v.endPos || v.pos < 0) v.active = false;
+                if (v.incSlope != 0) { v.inc += v.incSlope; if (v.incSlope < 0 && v.inc < 0.03) v.active = false; }
+                if (v.loops > 0 && v.pos >= v.loopEnd) { v.pos -= v.loopEnd; if (--v.loops == 0) v.endPos = v.loopEnd; v.age = 0; }
+                else if (v.pos >= v.endPos || v.pos < 0) v.active = false;
             }
 
+        if (lfx == LaneThrow) { dlSumL += dL[i]; dlSumR += dR[i]; }
+        if (lfx == LaneSwell) { rL[i] += dL[i] * 0.8f; rR[i] += dR[i] * 0.8f; }
+        auto dpl = dp;
+        if (lfx == LaneFreeze) { dlSumL = dlSumR = 0; dpl.feedback = 0.997f; }
         delayTime += (targetDelay - delayTime) * 0.0004;
-        dp.timeSamples = (float) delayTime;
-        float yl, yr; delay.process (dlSumL, dlSumR, yl, yr, dp);
+        dpl.timeSamples = (float) delayTime;
+        float yl, yr; delay.process (dlSumL, dlSumR, yl, yr, dpl);
         oL[i] = dL[i] + yl * dlyMix; oR[i] = dR[i] + yr * dlyMix;
     }
     if (! useHost && internalRun) internalPpq += n * pps;
@@ -267,6 +317,57 @@ void EclipseProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         phaser.setRate (*pPhRate); phaser.setDepth (*pPhDepth); phaser.setMix (*pPhMix);
         juce::dsp::AudioBlock<float> blk (buffer);
         phaser.process (juce::dsp::ProcessContextReplacing<float> (blk));
+    }
+    // --- FX lane : effets maitre places sur la grille ---
+    const int ringSize = (int) ringL.size();
+    const double beatSamples = 60.0 / bpm * sr;
+    for (int i = 0; i < n; ++i)
+    {
+        const float l = oL[i], r = oR[i];
+        ringL[(size_t) ringPos] = l; ringR[(size_t) ringPos] = r;
+        const int fx = laneFxBuf[(size_t) i]; const float pr = laneProgBuf[(size_t) i];
+        if (fx != prevLaneFx)
+        {
+            if (fx == LaneRep16 || fx == LaneRep32)
+            {
+                repeatLen = juce::jlimit (64, ringSize - 2, (int) (beatSamples * (fx == LaneRep16 ? 0.25 : 0.125)));
+                repeatStart = ((ringPos - repeatLen) % ringSize + ringSize) % ringSize; repeatPos = 0;
+            }
+            if (fx == LaneTapeStop) lag = 0;
+            for (auto& f : lanF) f = Eclipse::SVF();
+            prevLaneFx = fx;
+        }
+        float wl = l, wr = r;
+        switch (fx)
+        {
+            case LaneLpUp:   { float fc = 150.f * std::pow (120.f, pr);   wl = lanF[0].process (l, fc, 0.6f, sr, 0); wr = lanF[1].process (r, fc, 0.6f, sr, 0); break; }
+            case LaneLpDown: { float fc = 18000.f * std::pow (1.f / 120.f, pr); wl = lanF[0].process (l, fc, 0.6f, sr, 0); wr = lanF[1].process (r, fc, 0.6f, sr, 0); break; }
+            case LaneHpUp:   { float fc = 40.f * std::pow (150.f, pr);    wl = lanF[0].process (l, fc, 0.9f, sr, 2); wr = lanF[1].process (r, fc, 0.9f, sr, 2); break; }
+            case LaneRep16: case LaneRep32:
+            {
+                const int rp = (repeatStart + repeatPos) % ringSize; wl = ringL[(size_t) rp]; wr = ringR[(size_t) rp];
+                if (++repeatPos >= repeatLen) repeatPos = 0; break;
+            }
+            case LaneTapeStop:
+            {
+                lag = std::min (lag + juce::jlimit (0.0f, 1.0f, pr * 1.1f), (double) ringSize - 4.0);
+                double rp = (double) ringPos - lag; if (rp < 0) rp += ringSize;
+                const int i0 = (int) rp, i1 = (i0 + 1) % ringSize; const float fr = (float) (rp - i0);
+                wl = ringL[(size_t) i0] + (ringL[(size_t) i1] - ringL[(size_t) i0]) * fr;
+                wr = ringR[(size_t) i0] + (ringR[(size_t) i1] - ringR[(size_t) i0]) * fr;
+                const float amp = 1.0f - pr * 0.6f; wl *= amp; wr *= amp; break;
+            }
+            case LaneCrush:  { if (--crushCnt <= 0) { heldL = std::round (l * 8.f) / 8.f; heldR = std::round (r * 8.f) / 8.f; crushCnt = 6; } wl = heldL; wr = heldR; break; }
+            case LaneGate:   { const float g = std::fmod (pr * 4.0f, 1.0f) < 0.5f ? 1.0f : 0.04f; wl = l * g; wr = r * g; break; }
+            case LaneRing:   { ringPh += 220.0 / sr; ringPh -= std::floor (ringPh); const float m = (float) std::sin (juce::MathConstants<double>::twoPi * ringPh); wl = l * m; wr = r * m; break; }
+            case LaneDrive:  { wl = std::tanh (l * 6.f) * 0.7f; wr = std::tanh (r * 6.f) * 0.7f; break; }
+            case LaneDrop:   { wl = wr = 0; break; }
+            default: lag = 0; break;
+        }
+        const bool active = fx != LaneNone && fx != LaneThrow && fx != LaneFreeze && fx != LaneSwell;
+        laneMix += ((active ? 1.0f : 0.0f) - laneMix) * 0.01f;
+        oL[i] = l + (wl - l) * laneMix; oR[i] = r + (wr - r) * laneMix;
+        if (++ringPos >= ringSize) ringPos = 0;
     }
     for (int i = 0; i < n; ++i) { oL[i] = std::tanh (oL[i] * master); oR[i] = std::tanh (oR[i] * master); }
 }
@@ -310,6 +411,45 @@ void EclipseProcessor::reverseTrack (int t)
     }
 }
 
+void EclipseProcessor::randomizeLane (float density)
+{
+    clearLane();
+    for (int s = 0; s < getLaneSteps(); ++s)
+        if (rng.nextFloat() < density) setLane (s, 1 + rng.nextInt (LaneCount - 1));
+}
+
+bool EclipseProcessor::loadUserSample (int t, const juce::File& file, bool selectOnLoad)
+{
+    std::unique_ptr<juce::AudioFormatReader> reader (formats.createReaderFor (file));
+    if (reader == nullptr || reader->lengthInSamples <= 0) return false;
+    const int len = (int) std::min<juce::int64> (reader->lengthInSamples, (juce::int64) (reader->sampleRate * 20.0));
+    juce::AudioBuffer<float> tmp ((int) std::max<unsigned> (1, reader->numChannels), len);
+    reader->read (&tmp, 0, len, 0, true, true);
+    const double ratio = reader->sampleRate / sr;
+    const int outLen = std::max (16, (int) (len / ratio));
+    auto out = std::make_unique<std::vector<float>> ((size_t) outLen, 0.f);
+    float pk = 1e-6f;
+    for (int i = 0; i < outLen; ++i)
+    {
+        const double pos = i * ratio; const int i0 = std::min ((int) pos, len - 1), i1 = std::min (i0 + 1, len - 1);
+        const float fr = (float) (pos - i0); float m = 0;
+        for (int c = 0; c < tmp.getNumChannels(); ++c) { auto* d = tmp.getReadPointer (c); m += d[i0] + (d[i1] - d[i0]) * fr; }
+        m /= (float) tmp.getNumChannels(); (*out)[(size_t) i] = m; pk = std::max (pk, std::abs (m));
+    }
+    const float g = pk > 0.9f ? 0.9f / pk : 1.0f;
+    for (auto& v : *out) v *= g;
+    const size_t fade = std::min<size_t> (out->size(), 96);
+    for (size_t i = 0; i < fade; ++i) (*out)[out->size() - 1 - i] *= (float) i / (float) fade;
+    auto* raw = out.get();
+    graveyard.push_back (std::move (out));
+    userData[t] = raw;
+    userPath[t] = file.getFullPathName();
+    if (selectOnLoad)
+        if (auto* prm = apvts.getParameter ("t" + juce::String (t) + "_sample"))
+            prm->setValueNotifyingHost (prm->convertTo0to1 ((float) numSamples));
+    return true;
+}
+
 void EclipseProcessor::applyStepChar (int t, int s, char c)
 {
     switch (c)
@@ -346,6 +486,11 @@ void EclipseProcessor::loadPreset (int index)
         clearTrack (t);
         for (int s = 0; s < len && s < maxSteps; ++s) applyStepChar (t, s, p.rows[t][s]);
     }
+    clearLane();
+    const char* lanes = presetLanes (juce::jlimit (0, count - 1, index));
+    setParam ("lane_steps", (float) std::strlen (lanes));
+    for (int s = 0; lanes[s] != 0 && s < maxSteps; ++s)
+        if (auto* q = std::strchr (laneChars(), lanes[s])) setLane (s, (int) (q - laneChars()));
     // quelques réglages de départ cohérents
     setParam ("t5_dly", 0.f); setParam ("t6_dly", 0.45f); setParam ("t7_dly", 0.6f); setParam ("t7_rev", 0.5f);
     setParam ("t3_rev", 0.2f); setParam ("t1_rev", 0.25f);
@@ -387,7 +532,10 @@ void EclipseProcessor::getStateInformation (juce::MemoryBlock& dest)
         juce::String s;
         for (int i = 0; i < maxSteps; ++i) s << stepVel[t][i].load() << ":" << stepFx[t][i].load() << ",";
         st->setAttribute ("t" + juce::String (t), s);
+        st->setAttribute ("u" + juce::String (t), userPath[t]);
     }
+    juce::String ls; for (int i = 0; i < maxSteps; ++i) ls << laneFx[i].load() << ",";
+    st->setAttribute ("lane", ls);
     copyXmlToBinary (*xml, dest);
 }
 
@@ -405,6 +553,13 @@ void EclipseProcessor::setStateInformation (const void* data, int size)
                     auto kv = juce::StringArray::fromTokens (parts[i], ":", "");
                     if (kv.size() == 2) setStep (t, i, kv[0].getIntValue(), kv[1].getIntValue());
                 }
+            }
+            auto lp = juce::StringArray::fromTokens (st->getStringAttribute ("lane"), ",", "");
+            for (int i = 0; i < maxSteps && i < lp.size(); ++i) setLane (i, lp[i].getIntValue());
+            for (int t = 0; t < numTracks; ++t)
+            {
+                auto path = st->getStringAttribute ("u" + juce::String (t));
+                if (path.isNotEmpty() && juce::File (path).existsAsFile()) loadUserSample (t, juce::File (path), false);
             }
             xml->removeChildElement (st, true);
         }
