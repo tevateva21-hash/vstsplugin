@@ -1,37 +1,41 @@
-# ECLIPSE – Psychedelic Sampler (VST3 / Standalone)
+# PsyLab — Suite de 3 plugins VST3 / Standalone (noir & rouge mat)
 
-Premier plugin d'une série d'expérimentations techno psychédélique. Interface noire et rouge, sobre et mate.
+Projet JUCE 8 / CMake produisant trois plugins dans la même charte graphique (noir `#09090a`, rouge mat `#b3121b`, sans dégradé).
 
-## Contenu
-- **8 pistes** avec 24 samples synthétisés intégrés (kicks, claps, hats, percus, basses, bleeps psy, FM, risers, glitch…).
-- **Grille de pas** jusqu'à 32 pas par piste, avec résolution par piste (1/8, 1/16, 1/16T, 1/32) → polyrythmes / polymètres, swing global.
-- **Tes propres samples** : bouton `LOAD` sur chaque piste ou glisser-déposer un fichier (wav, aiff, mp3, flac, ogg) sur la ligne de la piste. Le chemin est sauvegardé avec le projet.
-- **Effets par pas (19)** : ratchet x2/x3/x4, reverse, octave +/-, chop, echo throw, pitch aléatoire, probabilité 50 %, tape stop, pitch rise, bitcrush, ring mod, filtre qui ferme/ouvre, distorsion, stutter.
-- **FX LANE (15 effets maître)** : une piste de grille en plus pour placer où tu veux delay throw/freeze, reverb swell, balayages de filtre LP/HP, beat repeat 1/16 et 1/32, tape stop, bitcrush, trance gate, ring mod, drive, drop.
-- **Outils de grille** : pinceau (effet + vélocité), clic droit = changer l'effet, molette = vélocité, menu par piste (euclidien, aléatoire, décaler, inverser, vider).
-- **7 patterns MIDI proposés** (Psy Rolling, Dark Techno, Acid Hypno, Tribal Ritual, Glitch Mind, Hypnotic Minimal, Full-On Night) + **export MIDI**.
-- **Delay psychédélique** (sync, wobble tape, ping-pong, smear, drive, tonalité), reverb, filtre maître avec LFO, phaser. Envois delay/reverb par piste.
-- **MIDI in** : notes 36–43 (C1–G1) = pistes 1–8 ; autres notes = jeu chromatique sur la piste choisie (« Clavier MIDI »).
-- Joue en synchro avec la DAW (position PPQ) ou avec le bouton PLAY interne.
+---
 
-## Compiler
-```
+## 1. ECLIPSE — Psychedelic Sampler (`Eclipse Psy Sampler.vst3`)
+- **8 pistes**, 24 samples synthétisés intégrés + **chargement de tes propres samples** (`LOAD` ou glisser-déposer wav/aiff/mp3/flac/ogg par piste, sauvegardé dans le projet).
+- **Grille jusqu'à 32 pas** par piste, résolution indépendante (1/8, 1/16, 1/16T, 1/32), swing, outils euclidiens / aléatoire / décalage / inversion.
+- **19 effets par pas** : ratchet ×2/×3/×4, reverse, octave +/−, chop, echo throw, pitch aléatoire, proba 50 %, tape stop, pitch rise, bitcrush, ring mod, filtre qui ferme/ouvre, distorsion, stutter.
+- **FX LANE (14 effets maître sur la grille)** : delay throw, delay freeze, reverb swell, filtres LP/HP, beat repeat 1/16 & 1/32, tape stop, bitcrush, trance gate, ring mod, drive, drop.
+- **7 patterns MIDI proposés** + export `.mid` + entrée MIDI (notes 36–43 = pistes 1–8, autres notes = jeu chromatique).
+- **Delay psychédélique** (sync, wobble, ping-pong, smear, drive, tone), reverb, phaser, filtre maître + LFO.
+
+## 2. HELIOS — Psychedelic Guitar Synthesizer (`Helios Guitar.vst3`)
+Instrument MIDI inspiré de l'univers Pink Floyd / Gilmour (aucune entrée audio requise, jouable au clavier MIDI ou au clavier intégré) :
+- **Moteur de cordes Karplus-Strong** polyphonique 12 voix ou **Mono Legato** (slides/hammer-on) : position et dureté du médiator, bruit d'attaque, résonance de caisse, brillance, sustain jusqu'au **sustain infini**, doublage **12 cordes**, largeur stéréo, vibrato (LFO + molette de modulation), pitch bend, glide, **accords automatiques** (Power, Majeur, Mineur, Sus2/4, Add9, Maj7, Min7, Min9, Open) avec **strum** réglable (vitesse, haut/bas/alterné).
+- **Pédalier complet** : Compresseur sustain → Octaver (−1 / +1) → Fuzz / Overdrive / **Big Muff** / Boost / Distortion → **Wah** (pédale, auto-wah enveloppe, LFO) → **Ampli & baffle** (EQ 4 bandes + 1×12, 2×12, 4×12) → **Tremolo** (bias / harmonique) → **Phaser** → **Chorus / Flanger / Vibrato / Leslie rotatif** (lent/rapide avec inertie) → **Tape / Binson Delay** → **Reverb** (Spring, Plate, Hall, **Shimmer +1 octave**).
+- **18 presets d'usine** classés (*Comfortably Numb Lead, Shine On Clean, Echoes Pompeii, Run Like Hell Dotted 8th, Breathe Uni-Vibe, Any Colour Leslie, Time Fuzz Solo, Dogs Harmony, Sorrow Heavy Wall, Money Funk Wah, Wish You Were 12-String, Dark Side Shimmer Pad…*) + sauvegarde de tes presets + bouton `DICE`.
+
+## 3. PRISM — Psychedelic Filter Sampler (`Prism Filter.vst3`)
+Sampler filtrant monophonique conçu pour sculpter un sample avec des filtres et des modulations :
+- **Source** : **glisser-déposer / `LOAD SAMPLE`** (wav, aiff, mp3, flac, ogg) ou 12 textures/boucles synthétisées intégrées. Modes **Boucle libre**, **Clavier MIDI (retrig)** ou **Clavier MIDI (legato)** avec suivi de hauteur, glide, boucle avant / aller-retour / one-shot, lecture inverse, début/fin déplaçables sur la forme d'onde.
+- **Moteur granulaire** : taille, densité, jitter de position et de pitch, largeur stéréo.
+- **2 filtres multi-modes** en **Série** ou **Parallèle** (avec pan et balance) : LP 12/24, HP 12/24, BP 12/24, Notch, **Ladder 24 dB acide**, **Comb +/−** résonnant, **Formant voyelles (A-E-I-O-U)**, chacun avec cutoff, résonance, drive, suivi de clavier et morphing, + **courbe de réponse en temps réel**.
+- **Modulations** : 2 enveloppes ADSR (ampli + filtre), **2 LFO** synchronisables (7 formes dont S&H et aléatoire lisse → F1, F2, résonance, pan, pitch), **séquenceur de filtre jusqu'à 32 pas** dessinable à la souris (menu de formes, lissage, swing, envoi vers F1, F2, trance gate et pitch).
+- **Effets de fin de chaîne** : bitcrusher, ring modulator, phaser, delay psychédélique, reverb.
+- **16 presets d'usine** + sauvegarde utilisateur + `DICE`.
+
+---
+
+## Récupérer et tester les 3 plugins
+1. Sur GitHub, ouvre l'onglet **Actions** → dernier run **Build** → télécharge l'artefact `psylab-windows-latest` ou `psylab-macos-latest`.
+2. Il contient les 3 dossiers `.vst3` (`Eclipse Psy Sampler.vst3`, `Helios Guitar.vst3`, `Prism Filter.vst3`) ainsi que les exécutables **Standalone**.
+3. Copie les `.vst3` dans `C:\Program Files\Common Files\VST3` (Windows) ou `~/Library/Audio/Plug-Ins/VST3` (macOS), rescanne dans ta DAW et charge-les sur des pistes instrument.
+
+## Compiler en local
+```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --config Release
+cmake --build build --config Release --parallel 4
 ```
-Le VST3 est généré dans `build/Eclipse_artefacts/Release/VST3/`. JUCE est téléchargé automatiquement.
-Linux : `libasound2-dev libfreetype6-dev libfontconfig1-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxext-dev libgl1-mesa-dev`.
-Le workflow GitHub Actions compile aussi Windows/macOS/Linux et publie les VST3 en artefacts.
-
-> Licence : JUCE est sous AGPLv3/commercial. Voir juce.com/juce-licensing avant toute distribution.
-
-Prompts pour la suite : voir [docs/PROMPTS.md](docs/PROMPTS.md).
-
-## Tester
-1. Récupère le VST3 : onglet **Actions** du repo → dernier run « Build » → artefact `eclipse-windows-latest` / `eclipse-macos-latest` (ou compile en local, voir plus haut).
-2. Copie le dossier `Eclipse Psy Sampler.vst3` dans `C:\Program Files\Common Files\VST3` (Windows) ou `~/Library/Audio/Plug-Ins/VST3` (macOS), puis rescanne les plugins dans ta DAW et charge-le sur une piste instrument. Sans DAW, lance l'exécutable Standalone.
-3. Appuie sur **PLAY** (ou lance la lecture de la DAW) : le pattern « Psy Rolling » joue. Teste les autres via le menu « Patterns MIDI proposés ».
-4. Samples : clique `LOAD` sur une piste (ou glisse un .wav dessus) → la piste passe sur « [ Mon sample ] ».
-5. Effets par pas : choisis un effet dans le pinceau « PAS » (panneau OUTILS DE GRILLE) puis clique/glisse sur la grille ; clic droit sur un pas = effet suivant.
-6. FX LANE : choisis un effet dans « LANE », clique des pas sur la ligne FX LANE, écoute pendant la lecture.
-7. Sans lecture : joue des notes MIDI C1–G1 (36–43) pour déclencher les pistes.

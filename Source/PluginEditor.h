@@ -1,42 +1,8 @@
 #pragma once
 #include "PluginProcessor.h"
 
-namespace EclipseUI
-{
-const juce::Colour bg       (0xff09090a);
-const juce::Colour panel    (0xff131315);
-const juce::Colour panelHi  (0xff1b1b1e);
-const juce::Colour line     (0xff2a2a2e);
-const juce::Colour red      (0xffb3121b);
-const juce::Colour redDark  (0xff5c0b10);
-const juce::Colour redHot   (0xffe0262f);
-const juce::Colour text     (0xffc8c8c8);
-const juce::Colour textDim  (0xff75757a);
-}
-
-class EclipseLookAndFeel : public juce::LookAndFeel_V4
-{
-public:
-    EclipseLookAndFeel();
-    void drawRotarySlider (juce::Graphics&, int x, int y, int w, int h, float pos, float start, float end, juce::Slider&) override;
-    void drawComboBox (juce::Graphics&, int w, int h, bool, int, int, int, int, juce::ComboBox&) override;
-    void drawButtonBackground (juce::Graphics&, juce::Button&, const juce::Colour&, bool, bool) override;
-    void drawLinearSlider (juce::Graphics&, int x, int y, int w, int h, float pos, float, float, juce::Slider::SliderStyle, juce::Slider&) override;
-    juce::Font getComboBoxFont (juce::ComboBox&) override { return juce::Font (juce::FontOptions (12.0f)); }
-    juce::Font getTextButtonFont (juce::TextButton&, int) override { return juce::Font (juce::FontOptions (12.0f)); }
-};
-
-class Knob : public juce::Component
-{
-public:
-    Knob (juce::AudioProcessorValueTreeState&, const juce::String& id, const juce::String& name, bool withLabel = true);
-    void resized() override;
-    juce::Slider slider;
-private:
-    juce::Label label;
-    bool hasLabel;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> att;
-};
+#include "PsyUI.h"
+using namespace PsyUI;
 
 struct Brush { std::atomic<int> fx { 0 }; std::atomic<int> vel { 100 }; std::atomic<int> laneFx { 1 }; };
 
@@ -105,7 +71,7 @@ private:
     void panelBox (juce::Graphics&, juce::Rectangle<int>, const juce::String&);
 
     EclipseProcessor& proc;
-    EclipseLookAndFeel lnf;
+    PsyLookAndFeel lnf;
     Brush brush;
     std::vector<std::unique_ptr<TrackRow>> rows;
     std::vector<std::unique_ptr<Knob>> fxKnobs;
