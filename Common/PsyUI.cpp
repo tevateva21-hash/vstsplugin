@@ -13,7 +13,7 @@ PsyLookAndFeel::PsyLookAndFeel()
     setColour (juce::PopupMenu::highlightedTextColourId, juce::Colours::white);
     setColour (juce::TextButton::buttonColourId, panelHi);
     setColour (juce::TextButton::buttonOnColourId, redDark);
-    setColour (juce::TextButton::textColourOffId, textDim);
+    setColour (juce::TextButton::textColourOffId, text);
     setColour (juce::TextButton::textColourOnId, juce::Colours::white);
     setColour (juce::Label::textColourId, textDim);
     setColour (juce::Slider::textBoxTextColourId, text);
@@ -31,44 +31,85 @@ PsyLookAndFeel::PsyLookAndFeel()
 
 void PsyLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int w, int h, float pos, float s, float e, juce::Slider&)
 {
-    auto r = juce::Rectangle<float> ((float) x, (float) y, (float) w, (float) h).reduced (3.0f);
+    auto r = juce::Rectangle<float> ((float) x, (float) y, (float) w, (float) h).reduced (4.0f);
     const float d = std::min (r.getWidth(), r.getHeight());
-    auto c = r.getCentre(); const float rad = d * 0.5f;
+    auto c = r.getCentre();
+    const float rad = d * 0.5f;
     const float ang = s + pos * (e - s);
-    g.setColour (panelHi); g.fillEllipse (c.x - rad * 0.72f, c.y - rad * 0.72f, rad * 1.44f, rad * 1.44f);
-    juce::Path track; track.addCentredArc (c.x, c.y, rad - 1.5f, rad - 1.5f, 0, s, e, true);
-    g.setColour (line); g.strokePath (track, juce::PathStrokeType (2.5f));
-    juce::Path val; val.addCentredArc (c.x, c.y, rad - 1.5f, rad - 1.5f, 0, s, ang, true);
-    g.setColour (red); g.strokePath (val, juce::PathStrokeType (2.5f));
+
+    // Ticks subtils autour de la couronne
+    g.setColour (line.brighter (0.15f));
+    for (int i = 0; i <= 10; ++i)
+    {
+        const float a = s + (float) i / 10.0f * (e - s);
+        const float r0 = rad - 1.0f, r1 = rad + 1.5f;
+        g.drawLine (c.x + std::sin (a) * r0, c.y - std::cos (a) * r0,
+                    c.x + std::sin (a) * r1, c.y - std::cos (a) * r1, 1.0f);
+    }
+
+    // Piste de fond
+    juce::Path track;
+    track.addCentredArc (c.x, c.y, rad - 3.5f, rad - 3.5f, 0, s, e, true);
+    g.setColour (bg.brighter (0.04f));
+    g.strokePath (track, juce::PathStrokeType (3.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+
+    // Halo et arc de valeur rouge
+    juce::Path val;
+    val.addCentredArc (c.x, c.y, rad - 3.5f, rad - 3.5f, 0, s, ang, true);
+    g.setColour (red.withAlpha (0.25f));
+    g.strokePath (val, juce::PathStrokeType (6.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
     g.setColour (redHot);
-    g.drawLine (c.x + std::sin (ang) * rad * 0.25f, c.y - std::cos (ang) * rad * 0.25f,
-                c.x + std::sin (ang) * rad * 0.68f, c.y - std::cos (ang) * rad * 0.68f, 2.0f);
+    g.strokePath (val, juce::PathStrokeType (3.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+
+    // Corps du potard mat avec biseau sombre
+    const float bodyRad = rad * 0.68f;
+    g.setColour (juce::Colours::black.withAlpha (0.45f));
+    g.fillEllipse (c.x - bodyRad, c.y - bodyRad + 1.5f, bodyRad * 2.0f, bodyRad * 2.0f);
+    juce::ColourGradient grad (panelHi.brighter (0.12f), c.x, c.y - bodyRad, panel.darker (0.2f), c.x, c.y + bodyRad, false);
+    g.setGradientFill (grad);
+    g.fillEllipse (c.x - bodyRad, c.y - bodyRad, bodyRad * 2.0f, bodyRad * 2.0f);
+    g.setColour (line.brighter (0.2f));
+    g.drawEllipse (c.x - bodyRad, c.y - bodyRad, bodyRad * 2.0f, bodyRad * 2.0f, 1.0f);
+
+    // Curseur lumineux
+    g.setColour (redHot);
+    g.drawLine (c.x + std::sin (ang) * bodyRad * 0.25f, c.y - std::cos (ang) * bodyRad * 0.25f,
+                c.x + std::sin (ang) * (bodyRad - 2.0f), c.y - std::cos (ang) * (bodyRad - 2.0f), 2.2f);
 }
 
 void PsyLookAndFeel::drawComboBox (juce::Graphics& g, int w, int h, bool, int, int, int, int, juce::ComboBox&)
 {
-    g.setColour (panelHi); g.fillRoundedRectangle (0, 0, (float) w, (float) h, 2.0f);
-    g.setColour (line); g.drawRoundedRectangle (0.5f, 0.5f, (float) w - 1, (float) h - 1, 2.0f, 1.0f);
-    juce::Path a; const float cx = (float) w - 10, cy = h * 0.5f;
-    a.addTriangle (cx - 3.5f, cy - 2, cx + 3.5f, cy - 2, cx, cy + 3);
-    g.setColour (red); g.fillPath (a);
+    auto r = juce::Rectangle<float> (0.5f, 0.5f, (float) w - 1.0f, (float) h - 1.0f);
+    g.setColour (panelHi); g.fillRoundedRectangle (r, 4.0f);
+    g.setColour (line.brighter (0.1f)); g.drawRoundedRectangle (r, 4.0f, 1.0f);
+    juce::Path a; const float cx = (float) w - 11.0f, cy = h * 0.5f;
+    a.addTriangle (cx - 4.0f, cy - 2.0f, cx + 4.0f, cy - 2.0f, cx, cy + 3.0f);
+    g.setColour (redHot); g.fillPath (a);
 }
 
-void PsyLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button& b, const juce::Colour&, bool over, bool)
+void PsyLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button& b, const juce::Colour&, bool over, bool down)
 {
-    auto r = b.getLocalBounds().toFloat().reduced (0.5f);
-    g.setColour (b.getToggleState() ? red.darker (0.2f) : (over ? panelHi.brighter (0.1f) : panelHi));
-    g.fillRoundedRectangle (r, 2.0f);
-    g.setColour (b.getToggleState() ? red : line); g.drawRoundedRectangle (r, 2.0f, 1.0f);
+    auto r = b.getLocalBounds().toFloat().reduced (0.75f);
+    const bool on = b.getToggleState();
+    juce::Colour base = on ? red.darker (0.15f) : (down ? panelHi.brighter (0.2f) : (over ? panelHi.brighter (0.12f) : panelHi));
+    if (on)
+    {
+        g.setColour (red.withAlpha (0.22f));
+        g.fillRoundedRectangle (r.expanded (1.0f), 4.5f);
+    }
+    g.setColour (base);
+    g.fillRoundedRectangle (r, 4.0f);
+    g.setColour (on ? redHot : (over ? line.brighter (0.3f) : line));
+    g.drawRoundedRectangle (r, 4.0f, 1.0f);
 }
 
 void PsyLookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, int w, int h, float pos, float, float, juce::Slider::SliderStyle style, juce::Slider& s)
 {
     if (style != juce::Slider::LinearHorizontal) { LookAndFeel_V4::drawLinearSlider (g, x, y, w, h, pos, 0, 0, style, s); return; }
     const float cy = y + h * 0.5f;
-    g.setColour (line); g.fillRect ((float) x, cy - 1.5f, (float) w, 3.0f);
-    g.setColour (red); g.fillRect ((float) x, cy - 1.5f, pos - x, 3.0f);
-    g.setColour (redHot); g.fillRect (pos - 3.0f, cy - 7.0f, 6.0f, 14.0f);
+    g.setColour (bg); g.fillRoundedRectangle ((float) x, cy - 2.5f, (float) w, 5.0f, 2.5f);
+    g.setColour (red); g.fillRoundedRectangle ((float) x, cy - 2.5f, std::max (0.0f, pos - x), 5.0f, 2.5f);
+    g.setColour (redHot); g.fillRoundedRectangle (pos - 4.0f, cy - 8.0f, 8.0f, 16.0f, 3.0f);
 }
 
 Knob::Knob (juce::AudioProcessorValueTreeState& s, const juce::String& id, const juce::String& name, bool withLabel) : hasLabel (withLabel)
@@ -79,15 +120,53 @@ Knob::Knob (juce::AudioProcessorValueTreeState& s, const juce::String& id, const
     slider.setRotaryParameters (juce::MathConstants<float>::pi * 1.2f, juce::MathConstants<float>::pi * 2.8f, true);
     addAndMakeVisible (slider);
     label.setText (name, juce::dontSendNotification); label.setJustificationType (juce::Justification::centred);
-    label.setFont (juce::Font (juce::FontOptions (10.5f))); label.setInterceptsMouseClicks (false, false);
+    label.setFont (juce::Font (juce::FontOptions (11.0f).withStyle ("Bold")));
+    label.setColour (juce::Label::textColourId, text);
+    label.setInterceptsMouseClicks (false, false);
     if (hasLabel) addAndMakeVisible (label);
     att = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (s, id, slider);
 }
 void Knob::resized()
 {
     auto r = getLocalBounds();
-    if (hasLabel) label.setBounds (r.removeFromBottom (13));
-    slider.setBounds (r);
+    if (hasLabel) label.setBounds (r.removeFromBottom (16));
+    slider.setBounds (r.reduced (1));
+}
+
+// ---------------------------------------------------------------- TabBar
+TabBar::TabBar (std::initializer_list<const char*> names, std::function<void (int)> onSelect) : cb (std::move (onSelect))
+{
+    int idx = 0;
+    for (auto* n : names)
+    {
+        auto b = std::make_unique<juce::TextButton> (n);
+        const int i = idx++;
+        b->onClick = [this, i] { select (i); };
+        addAndMakeVisible (*b);
+        btns.push_back (std::move (b));
+    }
+    select (0);
+}
+
+void TabBar::select (int idx)
+{
+    active = idx;
+    for (int i = 0; i < (int) btns.size(); ++i)
+        btns[(size_t) i]->setToggleState (i == active, juce::dontSendNotification);
+    if (cb) cb (active);
+}
+
+void TabBar::resized()
+{
+    if (btns.empty()) return;
+    auto r = getLocalBounds();
+    const int gap = 6;
+    const int w = (r.getWidth() - gap * ((int) btns.size() - 1)) / (int) btns.size();
+    for (size_t i = 0; i < btns.size(); ++i)
+    {
+        btns[i]->setBounds (r.removeFromLeft (w));
+        r.removeFromLeft (gap);
+    }
 }
 
 // ---------------------------------------------------------------- Panel
@@ -99,57 +178,105 @@ Panel::Panel (juce::AudioProcessorValueTreeState& a, const juce::String& t, cons
         att.push_back (std::make_shared<juce::AudioProcessorValueTreeState::ButtonAttachment> (a, powerId, power));
     }
 }
-void Panel::addKnob (const juce::String& id, const juce::String& label)
+void Panel::addKnob (const juce::String& id, const juce::String& label, int width)
 {
-    Cell c; c.w = 58; c.comp = std::make_unique<Knob> (apvts, id, label);
+    Cell c; c.w = width; c.comp = std::make_unique<Knob> (apvts, id, label);
     addAndMakeVisible (*c.comp); cells.push_back (std::move (c));
 }
-void Panel::addCombo (const juce::String& id, const juce::String& label)
+void Panel::addCombo (const juce::String& id, const juce::String& label, int width)
 {
-    Cell c; c.w = 100; auto cb = std::make_unique<juce::ComboBox>();
+    Cell c; c.w = width; auto cb = std::make_unique<juce::ComboBox>();
     if (auto* p = dynamic_cast<juce::AudioParameterChoice*> (apvts.getParameter (id))) cb->addItemList (p->choices, 1);
     att.push_back (std::make_shared<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (apvts, id, *cb));
     c.label = std::make_unique<juce::Label>(); c.label->setText (label, juce::dontSendNotification);
-    c.label->setJustificationType (juce::Justification::centred); c.label->setFont (juce::Font (juce::FontOptions (10.5f)));
+    c.label->setJustificationType (juce::Justification::centred);
+    c.label->setFont (juce::Font (juce::FontOptions (10.5f).withStyle ("Bold")));
+    c.label->setColour (juce::Label::textColourId, textDim);
     addAndMakeVisible (*cb); addAndMakeVisible (*c.label); c.comp = std::move (cb); cells.push_back (std::move (c));
 }
-void Panel::addToggle (const juce::String& id, const juce::String& label)
+void Panel::addToggle (const juce::String& id, const juce::String& label, int width)
 {
-    Cell c; c.w = 58; auto b = std::make_unique<juce::TextButton> (label); b->setClickingTogglesState (true);
+    Cell c; c.w = width; auto b = std::make_unique<juce::TextButton> (label); b->setClickingTogglesState (true);
     att.push_back (std::make_shared<juce::AudioProcessorValueTreeState::ButtonAttachment> (apvts, id, *b));
     addAndMakeVisible (*b); c.comp = std::move (b); cells.push_back (std::move (c));
 }
 int Panel::preferredWidth() const
 {
-    int w = 16; for (auto& c : cells) w += c.w;
-    return std::max (w, hasPower ? 130 : 90);
+    int w = 24; for (auto& c : cells) w += c.w;
+    return std::max (w, hasPower ? 150 : 110);
 }
 void Panel::paint (juce::Graphics& g)
 {
-    g.setColour (PsyUI::panel); g.fillRoundedRectangle (getLocalBounds().toFloat(), 3.0f);
-    g.setColour (line); g.drawRoundedRectangle (getLocalBounds().toFloat().reduced (0.5f), 3.0f, 1.0f);
-    g.setColour (red); g.setFont (juce::Font (juce::FontOptions (11.5f).withStyle ("Bold")));
-    g.drawText (title, 10, 4, getWidth() - 60, 16, juce::Justification::left);
+    auto r = getLocalBounds().toFloat();
+    g.setColour (PsyUI::panel);
+    g.fillRoundedRectangle (r, 6.0f);
+
+    // Bandeau de titre en haut du panneau
+    auto head = r.removeFromTop (24.0f);
+    g.setColour (panelHi.withAlpha (0.7f));
+    g.fillRoundedRectangle (head.getX() + 1.0f, head.getY() + 1.0f, head.getWidth() - 2.0f, head.getHeight(), 5.0f);
+    g.setColour (red);
+    g.fillRoundedRectangle (head.getX() + 8.0f, head.getY() + 6.0f, 3.0f, 12.0f, 1.5f);
+
+    g.setColour (line);
+    g.drawRoundedRectangle (getLocalBounds().toFloat().reduced (0.5f), 6.0f, 1.0f);
+    g.drawHorizontalLine (24, 1.0f, (float) getWidth() - 1.0f);
+
+    g.setColour (text);
+    g.setFont (juce::Font (juce::FontOptions (12.0f).withStyle ("Bold")));
+    g.drawText (title, 17, 4, getWidth() - (hasPower ? 64 : 24), 16, juce::Justification::centredLeft);
 }
 void Panel::resized()
 {
-    if (hasPower) power.setBounds (getWidth() - 40, 4, 32, 16);
-    int x = 8;
+    if (hasPower) power.setBounds (getWidth() - 46, 3, 38, 18);
+    if (cells.empty()) return;
+
+    int sumW = 0;
+    for (auto& c : cells) sumW += c.w;
+    const int avail = std::max (sumW, getWidth() - 20);
+    const float scale = (float) avail / (float) std::max (1, sumW);
+    const int bodyY = 28;
+    const int bodyH = getHeight() - bodyY - 6;
+
+    float fx = 10.0f;
     for (auto& c : cells)
     {
-        if (dynamic_cast<Knob*> (c.comp.get())) c.comp->setBounds (x, 22, c.w, 82);
+        const int cw = (int) std::round (c.w * scale);
+        const int ix = (int) std::round (fx);
+        if (dynamic_cast<Knob*> (c.comp.get()))
+        {
+            c.comp->setBounds (ix, bodyY, cw, bodyH);
+        }
         else if (dynamic_cast<juce::ComboBox*> (c.comp.get()))
         {
-            c.comp->setBounds (x + 2, 22 + 22, c.w - 4, 24);
-            c.label->setBounds (x, 22 + 66, c.w, 14);
+            c.comp->setBounds (ix + 4, bodyY + (bodyH - 42) / 2, cw - 8, 26);
+            c.label->setBounds (ix, bodyY + bodyH - 16, cw, 16);
         }
-        else c.comp->setBounds (x + 2, 22 + 22, c.w - 4, 24);
-        x += c.w;
+        else
+        {
+            c.comp->setBounds (ix + 4, bodyY + (bodyH - 28) / 2, cw - 8, 28);
+        }
+        fx += c.w * scale;
     }
 }
 
-int layoutRow (int x, int y, const std::vector<Panel*>& row)
+int layoutRow (int x, int y, const std::vector<Panel*>& row, int totalWidth, int rowHeight)
 {
-    for (auto* p : row) { p->setBounds (x, y, p->preferredWidth(), Panel::height); x += p->preferredWidth() + 8; }
-    return x;
+    if (row.empty()) return x;
+    const int gap = 10;
+    int sumPref = 0;
+    for (auto* p : row) sumPref += p->preferredWidth();
+    const int avail = totalWidth > 0 ? std::max (sumPref, totalWidth - gap * ((int) row.size() - 1)) : sumPref;
+
+    int curX = x;
+    for (size_t i = 0; i < row.size(); ++i)
+    {
+        int w = (i + 1 == row.size() && totalWidth > 0)
+                    ? (x + totalWidth - curX)
+                    : (int) std::round ((double) row[i]->preferredWidth() * avail / std::max (1, sumPref));
+        row[i]->setBounds (curX, y, w, rowHeight);
+        curX += w + gap;
+    }
+    return curX;
 }
+

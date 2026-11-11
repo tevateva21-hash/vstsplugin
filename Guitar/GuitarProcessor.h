@@ -13,7 +13,11 @@ public:
     GuitarProcessor();
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
     void releaseResources() override {}
-    bool isBusesLayoutSupported (const BusesLayout& l) const override { return l.getMainOutputChannelSet() == juce::AudioChannelSet::stereo(); }
+    bool isBusesLayoutSupported (const BusesLayout& l) const override
+    {
+        const auto& out = l.getMainOutputChannelSet();
+        return out == juce::AudioChannelSet::stereo() || out == juce::AudioChannelSet::mono();
+    }
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override { return true; }

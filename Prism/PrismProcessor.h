@@ -16,7 +16,11 @@ public:
     PrismProcessor();
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
     void releaseResources() override {}
-    bool isBusesLayoutSupported (const BusesLayout& l) const override { return l.getMainOutputChannelSet() == juce::AudioChannelSet::stereo(); }
+    bool isBusesLayoutSupported (const BusesLayout& l) const override
+    {
+        const auto& out = l.getMainOutputChannelSet();
+        return out == juce::AudioChannelSet::stereo() || out == juce::AudioChannelSet::mono();
+    }
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override { return true; }
@@ -82,7 +86,7 @@ private:
     Psy::LFO lfo1, lfo2;
     Grain grains[16]; int grainCooldown = 0;
     std::vector<int> held;
-    double sr = 44100, pos = 0, internalPpq = 0, delayTime = 10000;
+    double sr = 44100, bankSr = 0, pos = 0, internalPpq = 0, delayTime = 10000;
     int dir = 1, holdCnt = 0; float curNote = 60, targetNote = 60, vel = 1, seqSmoothed = 0, heldL = 0, heldR = 0;
     bool gate = false;
     juce::Random rng { 17 };
@@ -94,3 +98,4 @@ private:
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PrismProcessor)
 };
+

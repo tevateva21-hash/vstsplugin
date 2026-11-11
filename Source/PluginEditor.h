@@ -1,6 +1,5 @@
 #pragma once
 #include "PluginProcessor.h"
-
 #include "PsyUI.h"
 using namespace PsyUI;
 
@@ -39,17 +38,18 @@ class TrackRow : public juce::Component, public juce::FileDragAndDropTarget
 {
 public:
     TrackRow (EclipseProcessor&, int track, Brush&);
+    void paint (juce::Graphics&) override;
     void resized() override;
     bool isInterestedInFileDrag (const juce::StringArray&) override;
     void filesDropped (const juce::StringArray&, int, int) override;
     void refreshTooltip();
-    static constexpr int rowH = 44, cell = 16;
+    static constexpr int rowH = 52, cell = 17;
 private:
     void showMenu();
     void chooseFile();
     std::unique_ptr<juce::FileChooser> chooser;
     EclipseProcessor& proc; int track;
-    juce::Label num; juce::TextButton mute { "M" }, menu { "..." }, load { "LOAD" };
+    juce::TextButton padBtn, mute { "M" }, menu { "..." }, load { "LOAD" };
     juce::ComboBox sample, rate;
     juce::Slider steps;
     StepGrid grid;
@@ -67,27 +67,31 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 private:
-    void timerCallback() override { for (auto& r : rows) r->repaint(); laneGrid.repaint(); }
+    void timerCallback() override;
+    void setTab (int idx);
     void panelBox (juce::Graphics&, juce::Rectangle<int>, const juce::String&);
 
     EclipseProcessor& proc;
     PsyLookAndFeel lnf;
     Brush brush;
+    TabBar tabs;
     std::vector<std::unique_ptr<TrackRow>> rows;
-    std::vector<std::unique_ptr<Knob>> fxKnobs;
-    juce::TextButton play { "PLAY" }, exportBtn { "EXPORT MIDI" }, clearBtn { "CLEAR" };
+    std::vector<std::unique_ptr<Panel>> fxPanels;
+    juce::TextButton play { "PLAY / RUN" }, exportBtn { "EXPORT MIDI" }, clearBtn { "CLEAR" };
     juce::TooltipWindow tooltip { this, 400 };
     LaneGrid laneGrid;
     juce::Slider laneSteps; juce::TextButton laneMenu { "..." };
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> aLaneSteps;
     juce::ComboBox laneBrush;
-    juce::ComboBox presets, keyTrack, delayTime, filterType, brushFx;
+    juce::ComboBox presets, keyTrack, brushFx;
     juce::Slider brushVel;
     juce::Label brushLabel, keyLabel;
     std::unique_ptr<Knob> bpm, swing, master;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> aPlay;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> aKey, aDly, aFType;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> aKey;
+    juce::MidiKeyboardComponent keyboard;
     std::unique_ptr<juce::FileChooser> chooser;
-    int laneY = 0, laneH = 40;
-    juce::Rectangle<int> pDelay, pRev, pPhaser, pFilter, pBrush;
+    int laneY = 0, laneH = 44;
+    juce::Rectangle<int> pBrush;
 };
+

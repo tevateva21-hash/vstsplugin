@@ -92,6 +92,8 @@ PrismProcessor::PrismProcessor()
 {
     formats.registerBasicFormats();
     setWave (2);
+    makeBank();
+    bankSr = sr;
 }
 
 void PrismProcessor::makeBank()
@@ -149,16 +151,21 @@ void PrismProcessor::makeBank()
 
 void PrismProcessor::prepareToPlay (double sampleRate, int blockSize)
 {
-    sr = sampleRate;
-    makeBank();
-    if (userPath.isNotEmpty() && juce::File (userPath).existsAsFile()) loadUserSample (juce::File (userPath), false);
+    sr = sampleRate > 1000.0 ? sampleRate : 44100.0;
+    const int safeBlock = std::max (64, blockSize);
+    if (bank.empty() || std::abs (bankSr - sr) > 1.0)
+    {
+        makeBank();
+        bankSr = sr;
+    }
+    if (userPath.isNotEmpty() && userData.load() == nullptr && juce::File (userPath).existsAsFile()) loadUserSample (juce::File (userPath), false);
     for (auto& c : flt) for (auto& f : c) f.init (sr);
     for (auto& g : grains) g.on = false;
     held.clear(); pos = 0; dir = 1; gate = false;
     delay.prepare (sr); reverb.reset();
-    juce::dsp::ProcessSpec spec { sr, (juce::uint32) blockSize, 2 };
+    juce::dsp::ProcessSpec spec { sr, (juce::uint32) safeBlock, 2 };
     phaser.prepare (spec); phaser.setCentreFrequency (900.f); phaser.setFeedback (0.55f);
-    rvBuf.setSize (2, blockSize);
+    rvBuf.setSize (2, safeBlock);
 }
 
 const std::vector<float>* PrismProcessor::currentWave() const
@@ -172,10 +179,11 @@ bool PrismProcessor::loadUserSample (const juce::File& file, bool select)
 {
     std::unique_ptr<juce::AudioFormatReader> rd (formats.createReaderFor (file));
     if (rd == nullptr || rd->lengthInSamples <= 0) return false;
+    const double targetSr = sr > 1000.0 ? sr : 44100.0;
     const int len = (int) std::min<juce::int64> (rd->lengthInSamples, (juce::int64) (rd->sampleRate * 30.0));
     juce::AudioBuffer<float> tmp ((int) std::max<unsigned> (1, rd->numChannels), len);
     rd->read (&tmp, 0, len, 0, true, true);
-    const double ratio = rd->sampleRate / sr; const int outLen = std::max (64, (int) (len / ratio));
+    const double ratio = rd->sampleRate / targetSr; const int outLen = std::max (64, (int) (len / ratio));
     auto out = std::make_unique<std::vector<float>> ((size_t) outLen, 0.f);
     float pk = 1e-6f;
     for (int i = 0; i < outLen; ++i)
@@ -187,6 +195,7 @@ bool PrismProcessor::loadUserSample (const juce::File& file, bool select)
     }
     const float g = pk > 0.9f ? 0.9f / pk : 1.f; for (auto& v : *out) v *= g;
     auto* raw = out.get(); graveyard.push_back (std::move (out)); userData = raw; userPath = file.getFullPathName();
+    pos = 0;
     if (select) if (auto* p = apvts.getParameter ("src")) p->setValueNotifyingHost (p->convertTo0to1 (12.f));
     return true;
 }
@@ -279,7 +288,11 @@ void PrismProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiB
     const auto* w = currentWave();
     if (w == nullptr || w->empty()) return;
     const int W = (int) w->size();
-    auto* oL = buffer.getWritePointer (0); auto* oR = buffer.getWritePointer (1);
+    const int numOutCh = buffer.getNumChannels();
+    if (numOutCh < 1) return;
+    auto* oL = buffer.getWritePointer (0);
+    auto* oR = numOutCh > 1 ? buffer.getWritePointer (1) : oL;
+    if (rvBuf.getNumSamples() < n) rvBuf.setSize (2, n, false, false, true);
 
     // tempo / position
     double bpm = 135.0, ppq = internalPpq; bool hostPpq = false;
@@ -338,17 +351,22 @@ void PrismProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiB
                 if (wasEmpty) curNote = targetNote;
                 const bool retrig = trig != 2 || wasEmpty;
                 ampEnv.noteOn (retrig); fltEnv.noteOn (retrig);
-                if (retrig && trig != 0) { pos = rev ? endIdx : startIdx; dir = rev ? -1 : 1; }
+                if (retrig) { pos = rev ? endIdx : startIdx; dir = rev ? -1 : 1; }
             }
             else if (m.isNoteOff())
             {
                 held.erase (std::remove (held.begin(), held.end(), m.getNoteNumber()), held.end());
                 if (! held.empty()) targetNote = (float) held.back();
-                else { ampEnv.noteOff(); fltEnv.noteOff(); }
+                else if (trig != 0) { ampEnv.noteOff(); fltEnv.noteOff(); }
             }
         }
         curNote += (targetNote - curNote) * glideC;
-        if (trig == 0 && ampEnv.st == 0) { ampEnv.noteOn (true); fltEnv.noteOn (true); curNote = targetNote = root; pos = juce::jlimit (startIdx, endIdx, pos); }
+        if (trig == 0 && ampEnv.st == 0)
+        {
+            ampEnv.noteOn (true); fltEnv.noteOn (true);
+            if (held.empty()) curNote = targetNote = root;
+            pos = juce::jlimit (startIdx, endIdx, pos);
+        }
 
         // LFOs & sequenceur
         const float v1 = lfo1.tick (l1Hz / sr, l1Sh), v2 = lfo2.tick (l2Hz / sr, l2Sh);

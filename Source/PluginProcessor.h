@@ -1,6 +1,7 @@
 #pragma once
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_audio_formats/juce_audio_formats.h>
+#include <juce_audio_utils/juce_audio_utils.h>
 #include <juce_dsp/juce_dsp.h>
 #include <atomic>
 #include "SampleBank.h"
@@ -52,7 +53,12 @@ public:
 
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
     void releaseResources() override {}
-    bool isBusesLayoutSupported (const BusesLayout& l) const override { return l.getMainOutputChannelSet() == juce::AudioChannelSet::stereo(); }
+    bool isBusesLayoutSupported (const BusesLayout& l) const override
+    {
+        const auto& out = l.getMainOutputChannelSet();
+        if (out != juce::AudioChannelSet::stereo() && out != juce::AudioChannelSet::mono()) return false;
+        return true;
+    }
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
 
     juce::AudioProcessorEditor* createEditor() override;
@@ -82,6 +88,7 @@ public:
     void shiftTrack (int t, int amount);
     void reverseTrack (int t);
     void loadPreset (int index);
+    void triggerPreview (int track) { previewTrig[juce::jlimit (0, Eclipse::numTracks - 1, track)] = true; }
     // --- FX lane (effets maitre sur la grille) ---
     void setLane (int step, int fx) { laneFx[step] = (uint8_t) fx; }
     int  getLane (int step) const { return laneFx[step]; }
@@ -94,8 +101,10 @@ public:
     bool exportMidi (const juce::File& file) const;
 
     std::atomic<int> playStep[Eclipse::numTracks];
+    std::atomic<bool> previewTrig[Eclipse::numTracks];
     std::atomic<int> lanePlay { -1 };
     juce::AudioProcessorValueTreeState apvts;
+    juce::MidiKeyboardState keyboardState;
 
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
@@ -136,7 +145,7 @@ private:
     juce::AudioFormatManager formats;
     std::vector<float> ringL, ringR; std::vector<uint8_t> laneFxBuf; std::vector<float> laneProgBuf;
     float laneMix = 0, heldL = 0, heldR = 0; int prevLaneFx = 0, ringPos = 0, repeatPos = 0, repeatLen = 1000, crushCnt = 0;
-    double lag = 0, ringPh = 0; int repeatStart = 0; Eclipse::SVF lanF[2];
+    double lag = 0, ringPh = 0, bankSr = 0; int repeatStart = 0; Eclipse::SVF lanF[2];
 
     std::vector<std::vector<float>> bank;
     Voice voices[Eclipse::numTracks][Eclipse::voicesPerTrack];
@@ -155,3 +164,4 @@ private:
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (EclipseProcessor)
 };
+

@@ -1,18 +1,18 @@
 #pragma once
 #include <juce_audio_processors/juce_audio_processors.h>
 
-// Charte graphique commune : noir et rouge, sobre et mat.
+// Charte graphique commune : noir et rouge, sobre, mat et lisible.
 namespace PsyUI
 {
-const juce::Colour bg       (0xff09090a);
-const juce::Colour panel    (0xff131315);
-const juce::Colour panelHi  (0xff1b1b1e);
-const juce::Colour line     (0xff2a2a2e);
-const juce::Colour red      (0xffb3121b);
-const juce::Colour redDark  (0xff5c0b10);
-const juce::Colour redHot   (0xffe0262f);
-const juce::Colour text     (0xffc8c8c8);
-const juce::Colour textDim  (0xff75757a);
+const juce::Colour bg       (0xff0b0b0d);
+const juce::Colour panel    (0xff141418);
+const juce::Colour panelHi  (0xff1e1e24);
+const juce::Colour line     (0xff2c2c34);
+const juce::Colour red      (0xffcc1824);
+const juce::Colour redDark  (0xff660d13);
+const juce::Colour redHot   (0xffff3340);
+const juce::Colour text     (0xffdedee4);
+const juce::Colour textDim  (0xff8c8c96);
 }
 
 class PsyLookAndFeel : public juce::LookAndFeel_V4
@@ -24,7 +24,7 @@ public:
     void drawButtonBackground (juce::Graphics&, juce::Button&, const juce::Colour&, bool, bool) override;
     void drawLinearSlider (juce::Graphics&, int x, int y, int w, int h, float pos, float, float, juce::Slider::SliderStyle, juce::Slider&) override;
     juce::Font getComboBoxFont (juce::ComboBox&) override { return juce::Font (juce::FontOptions (12.0f)); }
-    juce::Font getTextButtonFont (juce::TextButton&, int) override { return juce::Font (juce::FontOptions (12.0f)); }
+    juce::Font getTextButtonFont (juce::TextButton&, int) override { return juce::Font (juce::FontOptions (11.5f).withStyle ("Bold")); }
 };
 
 class Knob : public juce::Component
@@ -39,18 +39,32 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> att;
 };
 
-// Panneau de commandes (titre, bouton on/off optionnel, potards / menus / interrupteurs).
+// Barre d'onglets pour basculer entre differentes vues (ex: Synthese / Modulation / Effets).
+class TabBar : public juce::Component
+{
+public:
+    TabBar (std::initializer_list<const char*> names, std::function<void (int)> onSelect);
+    void select (int idx);
+    int current() const { return active; }
+    void resized() override;
+private:
+    std::vector<std::unique_ptr<juce::TextButton>> btns;
+    std::function<void (int)> cb;
+    int active = 0;
+};
+
+// Panneau de commandes (titre avec bandeau, bouton on/off optionnel, potards / menus / interrupteurs).
 class Panel : public juce::Component
 {
 public:
     Panel (juce::AudioProcessorValueTreeState&, const juce::String& title, const juce::String& powerId = {});
-    void addKnob (const juce::String& id, const juce::String& label);
-    void addCombo (const juce::String& id, const juce::String& label);
-    void addToggle (const juce::String& id, const juce::String& label);
+    void addKnob (const juce::String& id, const juce::String& label, int width = 66);
+    void addCombo (const juce::String& id, const juce::String& label, int width = 114);
+    void addToggle (const juce::String& id, const juce::String& label, int width = 68);
     int preferredWidth() const;
     void paint (juce::Graphics&) override;
     void resized() override;
-    static constexpr int height = 108;
+    static constexpr int height = 122;
 private:
     struct Cell { std::unique_ptr<juce::Component> comp; std::unique_ptr<juce::Label> label; int w; };
     juce::AudioProcessorValueTreeState& apvts;
@@ -61,5 +75,6 @@ private:
     bool hasPower = false;
 };
 
-// Place des panneaux sur une ligne ; renvoie la largeur utilisee.
-int layoutRow (int x, int y, const std::vector<Panel*>& row);
+// Place des panneaux sur une ligne ; si totalWidth > 0, etire proportionnellement pour remplir toute la largeur.
+int layoutRow (int x, int y, const std::vector<Panel*>& row, int totalWidth = 0, int rowHeight = Panel::height);
+

@@ -9,23 +9,23 @@ void StepGrid::paint (juce::Graphics& g)
     const int steps = proc.getSteps (track), cw = TrackRow::cell, ph = proc.playStep[track];
     for (int s = 0; s < maxSteps; ++s)
     {
-        auto r = juce::Rectangle<float> ((float) s * cw + 1, 3.0f, (float) cw - 2, (float) getHeight() - 6);
+        auto r = juce::Rectangle<float> ((float) s * cw + 1.5f, 4.0f, (float) cw - 3.0f, (float) getHeight() - 8.0f);
         const bool on = s < steps;
-        g.setColour (! on ? bg.brighter (0.02f) : ((s / 4) % 2 == 0 ? panelHi : panel.brighter (0.01f)));
-        g.fillRoundedRectangle (r, 2.0f);
+        g.setColour (! on ? bg.brighter (0.02f) : ((s / 4) % 2 == 0 ? panelHi : panel.brighter (0.02f)));
+        g.fillRoundedRectangle (r, 3.0f);
         const int v = proc.getVel (track, s);
         if (on && v > 0)
         {
             g.setColour (redDark.interpolatedWith (redHot, v / 127.0f));
-            g.fillRoundedRectangle (r, 2.0f);
+            g.fillRoundedRectangle (r, 3.0f);
             const int fx = proc.getFx (track, s);
             if (fx > 0)
             {
-                g.setColour (juce::Colours::white.withAlpha (0.85f)); g.setFont (juce::Font (juce::FontOptions (10.0f)));
+                g.setColour (juce::Colours::white.withAlpha (0.9f)); g.setFont (juce::Font (juce::FontOptions (10.5f).withStyle ("Bold")));
                 g.drawText (fxTag (fx), r.toNearestInt(), juce::Justification::centred);
             }
         }
-        if (on && s == ph) { g.setColour (juce::Colours::white.withAlpha (0.55f)); g.drawRoundedRectangle (r, 2.0f, 1.2f); }
+        if (on && s == ph) { g.setColour (juce::Colours::white.withAlpha (0.75f)); g.drawRoundedRectangle (r, 3.0f, 1.5f); }
     }
 }
 
@@ -70,18 +70,18 @@ void LaneGrid::paint (juce::Graphics& g)
     const int steps = proc.getLaneSteps(), cw = TrackRow::cell, ph = proc.lanePlay;
     for (int s = 0; s < maxSteps; ++s)
     {
-        auto r = juce::Rectangle<float> ((float) s * cw + 1, 3.0f, (float) cw - 2, (float) getHeight() - 6);
+        auto r = juce::Rectangle<float> ((float) s * cw + 1.5f, 4.0f, (float) cw - 3.0f, (float) getHeight() - 8.0f);
         const bool on = s < steps;
-        g.setColour (! on ? bg.brighter (0.02f) : ((s / 4) % 2 == 0 ? panelHi : panel.brighter (0.01f)));
-        g.fillRoundedRectangle (r, 2.0f);
+        g.setColour (! on ? bg.brighter (0.02f) : ((s / 4) % 2 == 0 ? panelHi : panel.brighter (0.02f)));
+        g.fillRoundedRectangle (r, 3.0f);
         const int fx = proc.getLane (s);
         if (on && fx > 0)
         {
-            g.setColour (red.darker (0.1f)); g.fillRoundedRectangle (r, 2.0f);
-            g.setColour (juce::Colours::white.withAlpha (0.9f)); g.setFont (juce::Font (juce::FontOptions (11.0f).withStyle ("Bold")));
+            g.setColour (red.darker (0.1f)); g.fillRoundedRectangle (r, 3.0f);
+            g.setColour (juce::Colours::white.withAlpha (0.95f)); g.setFont (juce::Font (juce::FontOptions (11.5f).withStyle ("Bold")));
             g.drawText (laneTag (fx), r.toNearestInt(), juce::Justification::centred);
         }
-        if (on && s == ph) { g.setColour (juce::Colours::white.withAlpha (0.55f)); g.drawRoundedRectangle (r, 2.0f, 1.2f); }
+        if (on && s == ph) { g.setColour (juce::Colours::white.withAlpha (0.75f)); g.drawRoundedRectangle (r, 3.0f, 1.5f); }
     }
 }
 int LaneGrid::stepAt (juce::Point<int> p) const { const int s = p.x / TrackRow::cell; return (s >= 0 && s < proc.getLaneSteps()) ? s : -1; }
@@ -105,17 +105,22 @@ void LaneGrid::mouseDrag (const juce::MouseEvent& e) { if (! e.mods.isPopupMenu(
 TrackRow::TrackRow (EclipseProcessor& p, int t, Brush& b) : proc (p), track (t), grid (p, t, b)
 {
     auto id = "t" + juce::String (t) + "_";
-    num.setText (juce::String (t + 1), juce::dontSendNotification); num.setJustificationType (juce::Justification::centred);
-    num.setColour (juce::Label::textColourId, red);
-    addAndMakeVisible (num);
-    mute.setClickingTogglesState (true); addAndMakeVisible (mute);
+    padBtn.setButtonText ("P" + juce::String (t + 1));
+    padBtn.setTooltip ("Cliquer pour ecouter le sample de la piste " + juce::String (t + 1));
+    padBtn.onClick = [this] { proc.triggerPreview (track); };
+    addAndMakeVisible (padBtn);
+
+    mute.setClickingTogglesState (true);
+    mute.setTooltip ("Muter la piste");
+    addAndMakeVisible (mute);
     menu.onClick = [this] { showMenu(); }; addAndMakeVisible (menu);
     for (int i = 0; i < numSamples; ++i) sample.addItem (sampleNames()[i], i + 1);
     sample.addItem ("[ Mon sample ]", numSamples + 1);
-    load.onClick = [this] { chooseFile(); }; addAndMakeVisible (load); refreshTooltip();
+    sample.onChange = [this] { refreshTooltip(); };
+    load.onClick = [this] { chooseFile(); }; addAndMakeVisible (load);
     rate.addItemList ({ "1/8", "1/16", "1/16T", "1/32" }, 1);
     addAndMakeVisible (sample); addAndMakeVisible (rate);
-    steps.setSliderStyle (juce::Slider::IncDecButtons); steps.setTextBoxStyle (juce::Slider::TextBoxLeft, false, 24, 20);
+    steps.setSliderStyle (juce::Slider::IncDecButtons); steps.setTextBoxStyle (juce::Slider::TextBoxLeft, false, 26, 22);
     addAndMakeVisible (steps); addAndMakeVisible (grid);
     aSample = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (p.apvts, id + "sample", sample);
     aRate = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (p.apvts, id + "rate", rate);
@@ -123,21 +128,31 @@ TrackRow::TrackRow (EclipseProcessor& p, int t, Brush& b) : proc (p), track (t),
     aSteps = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (p.apvts, id + "steps", steps);
     const char* ids[6] = { "vol", "pan", "pitch", "len", "dly", "rev" };
     for (int i = 0; i < 6; ++i) { knobs[i] = std::make_unique<Knob> (p.apvts, id + ids[i], ids[i], false); addAndMakeVisible (*knobs[i]); }
+    refreshTooltip();
+}
+
+void TrackRow::paint (juce::Graphics& g)
+{
+    auto r = getLocalBounds().toFloat().reduced (0.f, 2.f);
+    g.setColour (panel.withAlpha (0.85f));
+    g.fillRoundedRectangle (r, 5.0f);
+    g.setColour (line.withAlpha (0.7f));
+    g.drawRoundedRectangle (r.reduced (0.5f), 5.0f, 1.0f);
 }
 
 void TrackRow::resized()
 {
-    auto r = getLocalBounds().reduced (0, 3);
-    num.setBounds (r.removeFromLeft (20)); r.removeFromLeft (3);
-    mute.setBounds (r.removeFromLeft (24).withSizeKeepingCentre (24, 24)); r.removeFromLeft (4);
-    sample.setBounds (r.removeFromLeft (110).withSizeKeepingCentre (110, 24)); r.removeFromLeft (2);
-    load.setBounds (r.removeFromLeft (36).withSizeKeepingCentre (36, 24)); r.removeFromLeft (4);
-    rate.setBounds (r.removeFromLeft (56).withSizeKeepingCentre (56, 24)); r.removeFromLeft (4);
-    steps.setBounds (r.removeFromLeft (66).withSizeKeepingCentre (66, 24)); r.removeFromLeft (6);
-    grid.setBounds (r.removeFromLeft (cell * maxSteps)); r.removeFromLeft (6);
-    for (auto& k : knobs) k->setBounds (r.removeFromLeft (36));
+    auto r = getLocalBounds().reduced (6, 4);
+    padBtn.setBounds (r.removeFromLeft (32).withSizeKeepingCentre (32, 28)); r.removeFromLeft (4);
+    mute.setBounds (r.removeFromLeft (26).withSizeKeepingCentre (26, 26)); r.removeFromLeft (6);
+    sample.setBounds (r.removeFromLeft (126).withSizeKeepingCentre (126, 26)); r.removeFromLeft (4);
+    load.setBounds (r.removeFromLeft (44).withSizeKeepingCentre (44, 26)); r.removeFromLeft (6);
+    rate.setBounds (r.removeFromLeft (60).withSizeKeepingCentre (60, 26)); r.removeFromLeft (4);
+    steps.setBounds (r.removeFromLeft (68).withSizeKeepingCentre (68, 26)); r.removeFromLeft (8);
+    grid.setBounds (r.removeFromLeft (cell * maxSteps)); r.removeFromLeft (8);
+    for (auto& k : knobs) k->setBounds (r.removeFromLeft (40));
     r.removeFromLeft (4);
-    menu.setBounds (r.removeFromLeft (28).withSizeKeepingCentre (28, 24));
+    menu.setBounds (r.removeFromLeft (28).withSizeKeepingCentre (28, 26));
 }
 
 bool TrackRow::isInterestedInFileDrag (const juce::StringArray& f)
@@ -152,6 +167,7 @@ void TrackRow::filesDropped (const juce::StringArray& f, int, int)
 void TrackRow::refreshTooltip()
 {
     auto n = proc.getUserName (track);
+    if (n.isNotEmpty()) sample.changeItemText (numSamples + 1, "Sample: " + n);
     load.setTooltip (n.isEmpty() ? "Charger un sample (ou glisser un fichier sur la piste)" : "Sample : " + n);
 }
 void TrackRow::chooseFile()
@@ -186,14 +202,19 @@ void TrackRow::showMenu()
 }
 
 // =============================================================== Éditeur
-EclipseEditor::EclipseEditor (EclipseProcessor& p) : AudioProcessorEditor (&p), proc (p), laneGrid (p, brush)
+EclipseEditor::EclipseEditor (EclipseProcessor& p)
+    : AudioProcessorEditor (&p), proc (p),
+      tabs ({ "1. SEQUENCEUR & SAMPLES", "2. EFFETS MAITRE & CLAVIER MIDI" }, [this] (int idx) { setTab (idx); }),
+      laneGrid (p, brush),
+      keyboard (p.keyboardState, juce::MidiKeyboardComponent::horizontalKeyboard)
 {
     setLookAndFeel (&lnf);
-    setSize (1140, 748);
+    addAndMakeVisible (tabs);
+
     for (int t = 0; t < numTracks; ++t) { rows.push_back (std::make_unique<TrackRow> (p, t, brush)); addAndMakeVisible (*rows.back()); }
 
     addAndMakeVisible (laneGrid);
-    laneSteps.setSliderStyle (juce::Slider::IncDecButtons); laneSteps.setTextBoxStyle (juce::Slider::TextBoxLeft, false, 24, 20);
+    laneSteps.setSliderStyle (juce::Slider::IncDecButtons); laneSteps.setTextBoxStyle (juce::Slider::TextBoxLeft, false, 26, 22);
     addAndMakeVisible (laneSteps);
     aLaneSteps = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (p.apvts, "lane_steps", laneSteps);
     laneMenu.onClick = [this]
@@ -214,10 +235,10 @@ EclipseEditor::EclipseEditor (EclipseProcessor& p) : AudioProcessorEditor (&p), 
 
     int count; auto* pr = patternPresets (count);
     for (int i = 0; i < count; ++i) presets.addItem (pr[i].name, i + 1);
-    presets.setTextWhenNothingSelected ("Patterns MIDI proposés...");
-    presets.onChange = [this] { proc.loadPreset (presets.getSelectedId() - 1); };
+    presets.setSelectedId (1, juce::dontSendNotification);
+    presets.onChange = [this] { proc.loadPreset (presets.getSelectedId() - 1); repaint(); };
     addAndMakeVisible (presets);
-    clearBtn.onClick = [this] { proc.clearAll(); };
+    clearBtn.onClick = [this] { proc.clearAll(); repaint(); };
     addAndMakeVisible (clearBtn);
     exportBtn.onClick = [this]
     {
@@ -231,17 +252,30 @@ EclipseEditor::EclipseEditor (EclipseProcessor& p) : AudioProcessorEditor (&p), 
     aKey = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (p.apvts, "keyTrack", keyTrack);
     keyLabel.setText ("CLAVIER MIDI >", juce::dontSendNotification); addAndMakeVisible (keyLabel);
 
-    auto K = [this, &p] (const char* id, const char* n) { fxKnobs.push_back (std::make_unique<Knob> (p.apvts, id, n)); addAndMakeVisible (*fxKnobs.back()); };
-    delayTime.addItemList ({ "1/16", "1/8T", "1/8", "1/8.", "1/4T", "1/4", "1/4.", "1/2" }, 1);
-    addAndMakeVisible (delayTime);
-    aDly = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (p.apvts, "dlyTime", delayTime);
-    K ("dlyFb", "FEEDBACK"); K ("dlyTone", "TONE"); K ("dlyWob", "WOBBLE"); K ("dlyWobRate", "W.RATE");
-    K ("dlySpread", "PINGPONG"); K ("dlySmear", "SMEAR"); K ("dlyDrive", "DRIVE"); K ("dlyMix", "RETURN");
-    K ("rvSize", "SIZE"); K ("rvDamp", "DAMP"); K ("rvMix", "RETURN");
-    K ("phRate", "RATE"); K ("phDepth", "DEPTH"); K ("phMix", "MIX");
-    filterType.addItemList ({ "Passe-bas", "Passe-haut", "Passe-bande" }, 1); addAndMakeVisible (filterType);
-    aFType = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (p.apvts, "fType", filterType);
-    K ("fCut", "CUTOFF"); K ("fRes", "RESO"); K ("fLfo", "LFO AMT"); K ("fRate", "LFO RATE");
+    // Panneaux d'effets pour l'onglet 2
+    auto makePanel = [this, &p] (const juce::String& title)
+    {
+        fxPanels.push_back (std::make_unique<Panel> (p.apvts, title));
+        addChildComponent (*fxPanels.back());
+        return fxPanels.back().get();
+    };
+    auto* dlyP = makePanel ("PSYCHEDELIC TAPE / BBD DELAY");
+    dlyP->addCombo ("dlyTime", "TEMPS", 100);
+    dlyP->addKnob ("dlyFb", "FEEDBACK", 74); dlyP->addKnob ("dlyTone", "TONE", 74);
+    dlyP->addKnob ("dlyWob", "WOBBLE", 74); dlyP->addKnob ("dlyWobRate", "W.RATE", 74);
+    dlyP->addKnob ("dlySpread", "PING-PONG", 74); dlyP->addKnob ("dlySmear", "SMEAR", 74);
+    dlyP->addKnob ("dlyDrive", "DRIVE", 74); dlyP->addKnob ("dlyMix", "RETURN", 74);
+
+    auto* fltP = makePanel ("FILTRE MAITRE + LFO");
+    fltP->addCombo ("fType", "TYPE", 120);
+    fltP->addKnob ("fCut", "CUTOFF", 80); fltP->addKnob ("fRes", "RESONANCE", 80);
+    fltP->addKnob ("fLfo", "LFO PROF", 80); fltP->addKnob ("fRate", "LFO VIT", 80);
+
+    auto* rvP = makePanel ("REVERB SPATIALE");
+    rvP->addKnob ("rvSize", "TAILLE", 80); rvP->addKnob ("rvDamp", "DAMPING", 80); rvP->addKnob ("rvMix", "RETURN", 80);
+
+    auto* phP = makePanel ("PHASER PSYCHEDELIQUE");
+    phP->addKnob ("phRate", "VITESSE", 80); phP->addKnob ("phDepth", "PROFONDEUR", 80); phP->addKnob ("phMix", "MIX", 80);
 
     for (int f = 0; f < FxCount; ++f) brushFx.addItem (fxName (f), f + 1);
     brushFx.setSelectedId (1); brushFx.onChange = [this] { brush.fx = brushFx.getSelectedId() - 1; };
@@ -249,90 +283,141 @@ EclipseEditor::EclipseEditor (EclipseProcessor& p) : AudioProcessorEditor (&p), 
     brushVel.setSliderStyle (juce::Slider::LinearHorizontal); brushVel.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
     brushVel.setRange (10, 127, 1); brushVel.setValue (100); brushVel.onValueChange = [this] { brush.vel = (int) brushVel.getValue(); };
     addAndMakeVisible (brushVel);
-    brushLabel.setText ("Clic: poser/effacer (glisser = peindre) avec le pinceau choisi  |  clic droit: changer l'effet du pas  |  molette: vélocité (pistes)  |  bouton '...': euclidien, aléatoire, décalage  |  LOAD: charger un sample",
+    brushLabel.setText ("P1..P8: ecouter le sample  |  Clic/Glisser: poser pas  |  Clic droit: effet par pas  |  Molette: velocite  |  LOAD ou Glisser-Deposer: charger sample",
                         juce::dontSendNotification);
-    brushLabel.setFont (juce::Font (juce::FontOptions (10.5f))); addAndMakeVisible (brushLabel);
+    brushLabel.setFont (juce::Font (juce::FontOptions (11.5f)));
+    brushLabel.setColour (juce::Label::textColourId, textDim);
+    addAndMakeVisible (brushLabel);
+
+    keyboard.setColour (juce::MidiKeyboardComponent::whiteNoteColourId, panelHi);
+    keyboard.setColour (juce::MidiKeyboardComponent::blackNoteColourId, bg);
+    keyboard.setColour (juce::MidiKeyboardComponent::keySeparatorLineColourId, line);
+    keyboard.setColour (juce::MidiKeyboardComponent::mouseOverKeyOverlayColourId, redDark);
+    keyboard.setColour (juce::MidiKeyboardComponent::keyDownOverlayColourId, red);
+    keyboard.setAvailableRange (36, 84); keyboard.setKeyWidth (22.0f);
+    addChildComponent (keyboard);
+
+    setSize (1260, 720);
+    setTab (0);
     startTimerHz (30);
 }
 
 EclipseEditor::~EclipseEditor() { setLookAndFeel (nullptr); }
 
+void EclipseEditor::timerCallback()
+{
+    if (tabs.current() == 0)
+        for (auto& r : rows) r->repaint();
+    laneGrid.repaint();
+}
+
+void EclipseEditor::setTab (int idx)
+{
+    const bool seqTab = (idx == 0);
+    for (auto& r : rows) r->setVisible (seqTab);
+    brushFx.setVisible (seqTab);
+    brushVel.setVisible (seqTab);
+    laneBrush.setVisible (seqTab);
+    brushLabel.setVisible (seqTab);
+    for (auto& fp : fxPanels) fp->setVisible (! seqTab);
+    keyboard.setVisible (! seqTab);
+    resized();
+    repaint();
+}
+
 void EclipseEditor::panelBox (juce::Graphics& g, juce::Rectangle<int> r, const juce::String& title)
 {
-    g.setColour (panel); g.fillRoundedRectangle (r.toFloat(), 3.0f);
-    g.setColour (line); g.drawRoundedRectangle (r.toFloat().reduced (0.5f), 3.0f, 1.0f);
-    g.setColour (red); g.setFont (juce::Font (juce::FontOptions (11.5f).withStyle ("Bold")));
-    g.drawText (title, r.getX() + 10, r.getY() + 5, 200, 14, juce::Justification::left);
+    g.setColour (panel); g.fillRoundedRectangle (r.toFloat(), 6.0f);
+    auto head = r.toFloat().removeFromTop (24.0f);
+    g.setColour (panelHi.withAlpha (0.7f));
+    g.fillRoundedRectangle (head.getX() + 1.0f, head.getY() + 1.0f, head.getWidth() - 2.0f, head.getHeight(), 5.0f);
+    g.setColour (red);
+    g.fillRoundedRectangle (head.getX() + 8.0f, head.getY() + 6.0f, 3.0f, 12.0f, 1.5f);
+    g.setColour (line); g.drawRoundedRectangle (r.toFloat().reduced (0.5f), 6.0f, 1.0f);
+    g.setColour (text); g.setFont (juce::Font (juce::FontOptions (12.0f).withStyle ("Bold")));
+    g.drawText (title, r.getX() + 18, r.getY() + 4, 340, 16, juce::Justification::centredLeft);
 }
 
 void EclipseEditor::paint (juce::Graphics& g)
 {
     g.fillAll (bg);
-    g.setColour (red); g.setFont (juce::Font (juce::FontOptions (30.0f).withStyle ("Bold")));
-    g.drawText ("ECLIPSE", 18, 8, 220, 34, juce::Justification::left);
-    g.setColour (textDim); g.setFont (juce::Font (juce::FontOptions (11.0f)));
-    g.drawText ("PSYCHEDELIC SAMPLER", 20, 40, 220, 14, juce::Justification::left);
-    g.setColour (line); g.drawHorizontalLine (68, 15.0f, (float) getWidth() - 15);
+    g.setColour (redHot); g.setFont (juce::Font (juce::FontOptions (28.0f).withStyle ("Bold")));
+    g.drawText ("ECLIPSE", 18, 8, 200, 32, juce::Justification::left);
+    g.setColour (textDim); g.setFont (juce::Font (juce::FontOptions (11.0f).withStyle ("Bold")));
+    g.drawText ("PSYCHEDELIC SAMPLER & SEQUENCER", 20, 38, 250, 14, juce::Justification::left);
+    g.setColour (line); g.drawHorizontalLine (64, 15.0f, (float) getWidth() - 15);
 
-    g.setColour (textDim); g.setFont (juce::Font (juce::FontOptions (10.0f)));
-    const int y = 72, x0 = 15 + 20 + 3 + 24 + 4;
-    g.drawText ("SAMPLE / LOAD (ou glisser un fichier)", x0, y, 150, 14, juce::Justification::left);
-    g.drawText ("GRILLE", x0 + 152, y, 56, 14, juce::Justification::centred);
-    g.drawText ("PAS", x0 + 216, y, 66, 14, juce::Justification::centred);
-    const int gx = x0 + 284;
-    g.drawText ("SEQUENCE", gx, y, 200, 14, juce::Justification::left);
-    const int kx = gx + TrackRow::cell * maxSteps + 6; const char* kn[6] = { "VOL", "PAN", "PITCH", "LEN", "DLY", "REV" };
-    for (int i = 0; i < 6; ++i) g.drawText (kn[i], kx + i * 36, y, 36, 14, juce::Justification::centred);
+    if (tabs.current() == 0)
+    {
+        g.setColour (textDim); g.setFont (juce::Font (juce::FontOptions (10.5f).withStyle ("Bold")));
+        const int y = 108, x0 = 15 + 6 + 32 + 4 + 26 + 6;
+        g.drawText ("SAMPLE / LOAD (ou glisser)", x0, y, 174, 14, juce::Justification::left);
+        g.drawText ("GRILLE", x0 + 180, y, 60, 14, juce::Justification::centred);
+        g.drawText ("PAS", x0 + 244, y, 68, 14, juce::Justification::centred);
+        const int gx = x0 + 320;
+        g.drawText ("SEQUENCE (32 PAS)", gx, y, 220, 14, juce::Justification::left);
+        const int kx = gx + TrackRow::cell * maxSteps + 8;
+        const char* kn[6] = { "VOL", "PAN", "PITCH", "LEN", "DLY", "REV" };
+        for (int i = 0; i < 6; ++i) g.drawText (kn[i], kx + i * 40, y, 40, 14, juce::Justification::centred);
 
-    g.setColour (red); g.setFont (juce::Font (juce::FontOptions (11.5f).withStyle ("Bold")));
-    g.drawText ("FX LANE", 38, laneY, 120, laneH, juce::Justification::centredLeft);
-    g.setColour (textDim); g.setFont (juce::Font (juce::FontOptions (10.0f)));
-    g.drawText ("effets MAITRE a placer sur la grille", 38 + 70, laneY, 140, laneH, juce::Justification::centredLeft);
+        panelBox (g, pBrush, "PINCEAU DE SEQUENCE & OUTILS DE GRILLE");
+        g.setColour (textDim); g.setFont (juce::Font (juce::FontOptions (11.0f).withStyle ("Bold")));
+        g.drawText ("EFFET PAR PAS :", pBrush.getX() + 16, pBrush.getY() + 34, 120, 24, juce::Justification::centredLeft);
+        g.drawText ("VELOCITE :", pBrush.getX() + 310, pBrush.getY() + 34, 80, 24, juce::Justification::centredLeft);
+        g.drawText ("EFFET FX LANE :", pBrush.getX() + 560, pBrush.getY() + 34, 120, 24, juce::Justification::centredLeft);
+    }
+
+    // Bandeau FX LANE (toujours visible)
+    g.setColour (redHot); g.setFont (juce::Font (juce::FontOptions (12.0f).withStyle ("Bold")));
+    g.drawText ("FX LANE MAITRE", 24, laneY, 130, laneH, juce::Justification::centredLeft);
+    g.setColour (textDim); g.setFont (juce::Font (juce::FontOptions (10.5f)));
     g.drawText ("T throw  F freeze  W swell  / \\ H filtres  R r repeat  < tape stop  B crush  G gate  M ring  D drive  X drop",
-                kx, laneY, 280, laneH, juce::Justification::centredLeft);
-    g.setColour (line); g.drawHorizontalLine (laneY - 2, 15.0f, (float) getWidth() - 15);
-    g.setColour (textDim);
-    g.drawText ("PAS : effet / velocite", pBrush.getX() + 12, pBrush.getY() + 18, 160, 12, juce::Justification::left);
-    g.drawText ("LANE : effet maitre", pBrush.getX() + 330, pBrush.getY() + 18, 160, 12, juce::Justification::left);
-    panelBox (g, pDelay, "PSYCHEDELIC DELAY / ECHO"); panelBox (g, pRev, "REVERB");
-    panelBox (g, pPhaser, "PHASER"); panelBox (g, pFilter, "FILTRE MAITRE + LFO"); panelBox (g, pBrush, "OUTILS DE GRILLE");
+                900, laneY, 340, laneH, juce::Justification::centredLeft);
 }
 
 void EclipseEditor::resized()
 {
     auto r = getLocalBounds().reduced (15, 0);
-    auto head = juce::Rectangle<int> (r.getX(), 6, r.getWidth(), 58);
-    play.setBounds (head.getX() + 260, 20, 70, 28);
-    bpm->setBounds (head.getX() + 345, 4, 56, 62); swing->setBounds (head.getX() + 405, 4, 56, 62); master->setBounds (head.getX() + 465, 4, 56, 62);
-    presets.setBounds (head.getX() + 545, 20, 200, 28);
-    clearBtn.setBounds (head.getX() + 755, 20, 60, 28);
-    exportBtn.setBounds (head.getX() + 820, 20, 100, 28);
-    keyLabel.setBounds (head.getRight() - 120, 6, 110, 14);
-    keyTrack.setBounds (head.getRight() - 120, 24, 100, 24);
+    play.setBounds (245, 16, 95, 32);
+    bpm->setBounds (348, 2, 58, 58);
+    swing->setBounds (410, 2, 58, 58);
+    master->setBounds (472, 2, 58, 58);
+    presets.setBounds (542, 16, 210, 30);
+    clearBtn.setBounds (760, 16, 68, 30);
+    exportBtn.setBounds (834, 16, 108, 30);
+    keyLabel.setBounds (getWidth() - 220, 8, 100, 14);
+    keyTrack.setBounds (getWidth() - 220, 24, 105, 26);
 
-    int y = 88;
-    for (auto& row : rows) { row->setBounds (r.getX(), y, r.getWidth(), TrackRow::rowH); y += TrackRow::rowH; }
-    laneY = y + 4; laneH = 40;
+    tabs.setBounds (r.getX(), 70, r.getWidth(), 32);
+
+    const int x0 = r.getX() + 6 + 32 + 4 + 26 + 6;
+    if (tabs.current() == 0)
     {
-        const int x0 = r.getX() + 20 + 3 + 24 + 4;
-        laneSteps.setBounds (x0 + 212 + 0, laneY + 8, 66, 24);
-        laneGrid.setBounds (x0 + 284, laneY, TrackRow::cell * maxSteps, laneH);
-        laneMenu.setBounds (x0 + 284 + TrackRow::cell * maxSteps + 6 + 36 * 6 + 4, laneY + 8, 28, 24);
+        int y = 124;
+        for (auto& row : rows) { row->setBounds (r.getX(), y, r.getWidth(), TrackRow::rowH); y += TrackRow::rowH + 3; }
+        laneY = y + 4; laneH = 44;
+        laneSteps.setBounds (x0 + 244, laneY + 9, 68, 26);
+        laneGrid.setBounds (x0 + 320, laneY, TrackRow::cell * maxSteps, laneH);
+        laneMenu.setBounds (x0 + 320 + TrackRow::cell * maxSteps + 8, laneY + 9, 32, 26);
+
+        pBrush = { r.getX(), laneY + laneH + 8, r.getWidth(), 92 };
+        brushFx.setBounds (pBrush.getX() + 130, pBrush.getY() + 34, 165, 26);
+        brushVel.setBounds (pBrush.getX() + 385, pBrush.getY() + 34, 155, 26);
+        laneBrush.setBounds (pBrush.getX() + 675, pBrush.getY() + 34, 180, 26);
+        brushLabel.setBounds (pBrush.getX() + 16, pBrush.getY() + 64, pBrush.getWidth() - 32, 22);
     }
-    const int py = 492;
-    pDelay = { r.getX(), py, 640, 118 }; pRev = { r.getX() + 650, py, 195, 118 }; pPhaser = { r.getX() + 855, py, 195, 118 };
-    pFilter = { r.getX(), py + 126, 430, 118 }; pBrush = { r.getX() + 440, py + 126, 610, 118 };
+    else
+    {
+        laneY = 114; laneH = 48;
+        laneSteps.setBounds (x0 + 244, laneY + 11, 68, 26);
+        laneGrid.setBounds (x0 + 320, laneY, TrackRow::cell * maxSteps, laneH);
+        laneMenu.setBounds (x0 + 320 + TrackRow::cell * maxSteps + 8, laneY + 11, 32, 26);
 
-    auto place = [] (juce::Component& c, juce::Rectangle<int> panel, int idx) { c.setBounds (panel.getX() + 8 + idx * 58, panel.getY() + 26, 56, 84); };
-    delayTime.setBounds (pDelay.getRight() - 90, pDelay.getY() + 4, 80, 20);
-    for (int i = 0; i < 8; ++i) place (*fxKnobs[(size_t) i], pDelay, i);
-    for (int i = 0; i < 3; ++i) place (*fxKnobs[(size_t) (8 + i)], pRev, i);
-    for (int i = 0; i < 3; ++i) place (*fxKnobs[(size_t) (11 + i)], pPhaser, i);
-    filterType.setBounds (pFilter.getRight() - 110, pFilter.getY() + 4, 100, 20);
-    for (int i = 0; i < 4; ++i) place (*fxKnobs[(size_t) (14 + i)], pFilter, i);
-
-    brushFx.setBounds (pBrush.getX() + 12, pBrush.getY() + 32, 170, 26);
-    brushVel.setBounds (pBrush.getX() + 190, pBrush.getY() + 32, 125, 26);
-    laneBrush.setBounds (pBrush.getX() + 330, pBrush.getY() + 32, 170, 26);
-    brushLabel.setBounds (pBrush.getX() + 12, pBrush.getY() + 64, pBrush.getWidth() - 24, 48);
+        const int py = laneY + laneH + 14;
+        const int rowH = 165;
+        layoutRow (r.getX(), py, { fxPanels[0].get() }, r.getWidth(), rowH);
+        layoutRow (r.getX(), py + rowH + 12, { fxPanels[1].get(), fxPanels[2].get(), fxPanels[3].get() }, r.getWidth(), rowH);
+        keyboard.setBounds (r.getX(), py + (rowH + 12) * 2 + 6, r.getWidth(), getHeight() - (py + (rowH + 12) * 2 + 18));
+    }
 }
+

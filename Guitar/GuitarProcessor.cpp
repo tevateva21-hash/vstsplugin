@@ -86,16 +86,17 @@ GuitarProcessor::GuitarProcessor()
 
 void GuitarProcessor::prepareToPlay (double sampleRate, int blockSize)
 {
-    sr = sampleRate;
+    sr = sampleRate > 1000.0 ? sampleRate : 44100.0;
+    const int safeBlock = std::max (64, blockSize);
     bufSize = 1; while (bufSize < (int) (sr / 25.0) + 16) bufSize <<= 1;
     for (auto& v : voices) { v = Voice(); v.buf.assign ((size_t) bufSize, 0.f); }
     for (auto& p : pend) p.active = false;
     held.clear();
     modDelay.init (sr); leslie.init (sr); spring.init (sr); delay.prepare (sr);
     psDown.init(); psUp.init(); psShim[0].init(); psShim[1].init();
-    juce::dsp::ProcessSpec spec { sr, (juce::uint32) blockSize, 2 };
+    juce::dsp::ProcessSpec spec { sr, (juce::uint32) safeBlock, 2 };
     phaser.prepare (spec); phaser.reset(); reverb.reset();
-    rvBuf.setSize (2, blockSize); shimL.assign ((size_t) blockSize, 0.f); shimR.assign ((size_t) blockSize, 0.f);
+    rvBuf.setSize (2, safeBlock); shimL.assign ((size_t) safeBlock, 0.f); shimR.assign ((size_t) safeBlock, 0.f);
     for (auto& c : ch) c = Ch();
     for (auto& b : body) b.reset();
     lastBass = -99; lastCab = -1;
@@ -209,7 +210,11 @@ void GuitarProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
     const int n = buffer.getNumSamples();
     buffer.clear();
     keyboardState.processNextMidiBuffer (midi, 0, n, true);
-    auto* oL = buffer.getWritePointer (0); auto* oR = buffer.getWritePointer (1);
+    const int numOutCh = buffer.getNumChannels();
+    if (numOutCh < 1) return;
+    auto* oL = buffer.getWritePointer (0);
+    auto* oR = numOutCh > 1 ? buffer.getWritePointer (1) : oL;
+    if (rvBuf.getNumSamples() < n) { rvBuf.setSize (2, n, false, false, true); shimL.assign ((size_t) n, 0.f); shimR.assign ((size_t) n, 0.f); }
 
     // tempo
     double bpm = 120.0;

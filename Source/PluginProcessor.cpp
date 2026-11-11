@@ -18,7 +18,7 @@ APVTS::ParameterLayout EclipseProcessor::createLayout()
     { l.add (std::make_unique<F> (pid (id), n, R (lo, hi, 0.0f, skew), def)); };
 
     l.add (std::make_unique<juce::AudioParameterFloat> (pid ("bpm"), "BPM interne", R (60.f, 200.f, 0.1f), 140.f));
-    l.add (std::make_unique<juce::AudioParameterBool> (pid ("run"), "Lecture interne", false));
+    l.add (std::make_unique<juce::AudioParameterBool> (pid ("run"), "Lecture interne", true));
     flt ("swing", "Swing", 0.f, 1.f, 0.f);
     flt ("master", "Master", 0.f, 1.5f, 0.9f);
     juce::StringArray trk; for (int i = 1; i <= 8; ++i) trk.add ("Piste " + juce::String (i));
@@ -77,7 +77,7 @@ EclipseProcessor::EclipseProcessor()
         auto p = "t" + juce::String (t) + "_";
         tp[t] = { g (p + "sample"), g (p + "vol"), g (p + "pan"), g (p + "pitch"), g (p + "len"),
                   g (p + "dly"), g (p + "rev"), g (p + "mute"), g (p + "rate"), g (p + "steps") };
-        playStep[t] = -1; lastKey[t] = LLONG_MIN;
+        playStep[t] = -1; previewTrig[t] = false; lastKey[t] = LLONG_MIN;
         for (int s = 0; s < maxSteps; ++s) { stepVel[t][s] = 0; stepFx[t][s] = 0; }
     }
     pLaneSteps = g ("lane_steps");
@@ -90,36 +90,56 @@ EclipseProcessor::EclipseProcessor()
     pRvSize = g ("rvSize"); pRvDamp = g ("rvDamp"); pRvMix = g ("rvMix");
     pFType = g ("fType"); pFCut = g ("fCut"); pFRes = g ("fRes"); pFLfo = g ("fLfo"); pFRate = g ("fRate");
     pPhRate = g ("phRate"); pPhDepth = g ("phDepth"); pPhMix = g ("phMix");
-    loadPreset (0);
+
+    // Initialisation securisee du pattern par defaut sans appeler setValueNotifyingHost dans le constructeur
+    int count = 0; auto* presets = patternPresets (count);
+    if (count > 0)
+    {
+        for (int t = 0; t < numTracks; ++t)
+        {
+            const int len = (int) std::strlen (presets[0].rows[t]);
+            for (int s = 0; s < len && s < maxSteps; ++s) applyStepChar (t, s, presets[0].rows[t][s]);
+        }
+        const char* lanes = presetLanes (0);
+        for (int s = 0; lanes[s] != 0 && s < maxSteps; ++s)
+            if (auto* q = std::strchr (laneChars(), lanes[s])) setLane (s, (int) (q - laneChars()));
+    }
+    bankSr = sr;
+    for (int i = 0; i < numSamples; ++i) bank.push_back (generateSample (i, sr));
 }
 
 void EclipseProcessor::prepareToPlay (double sampleRate, int blockSize)
 {
-    sr = sampleRate;
-    bank.clear();
-    for (int i = 0; i < numSamples; ++i) bank.push_back (generateSample (i, sr));
-    for (int t = 0; t < numTracks; ++t) if (userPath[t].isNotEmpty()) loadUserSample (t, juce::File (userPath[t]), false);
+    sr = sampleRate > 1000.0 ? sampleRate : 44100.0;
+    const int safeBlock = std::max (64, blockSize);
+    if (bank.empty() || std::abs (bankSr - sr) > 1.0)
+    {
+        bank.clear();
+        for (int i = 0; i < numSamples; ++i) bank.push_back (generateSample (i, sr));
+        bankSr = sr;
+    }
+    for (int t = 0; t < numTracks; ++t) if (userPath[t].isNotEmpty() && userData[t].load() == nullptr) loadUserSample (t, juce::File (userPath[t]), false);
     ringL.assign ((size_t) (sr * 2.0), 0.f); ringR.assign ((size_t) (sr * 2.0), 0.f);
-    laneFxBuf.assign ((size_t) blockSize, 0); laneProgBuf.assign ((size_t) blockSize, 0.f);
+    laneFxBuf.assign ((size_t) safeBlock, 0); laneProgBuf.assign ((size_t) safeBlock, 0.f);
     ringPos = 0; prevLaneFx = 0; laneMix = 0; lag = 0;
     for (auto& tr : voices) for (auto& v : tr) v = Voice();
     for (auto& k : lastKey) k = LLONG_MIN;
     delay.prepare (sr);
     reverb.reset();
-    juce::dsp::ProcessSpec spec { sr, (juce::uint32) blockSize, 2 };
+    juce::dsp::ProcessSpec spec { sr, (juce::uint32) safeBlock, 2 };
     phaser.prepare (spec); phaser.setCentreFrequency (900.f); phaser.setFeedback (0.5f);
     filter.prepare (spec); filter.reset();
-    dryBuf.setSize (2, blockSize); rvBuf.setSize (2, blockSize);
+    dryBuf.setSize (2, safeBlock); rvBuf.setSize (2, safeBlock);
     internalPpq = 0; wasPlaying = false;
 }
 
 void EclipseProcessor::trigger (int t, float vel, int extraSemis, int fx)
 {
     if (*tp[t].mute > 0.5f) return;
-    const int si = juce::jlimit (0, numSamples, (int) *tp[t].sample);
+    int si = juce::jlimit (0, numSamples, (int) *tp[t].sample);
     const std::vector<float>* d = nullptr;
     if (si == numSamples) d = userData[t].load();
-    else if (si < (int) bank.size()) d = &bank[(size_t) si];
+    if (d == nullptr && ! bank.empty()) d = &bank[(size_t) juce::jlimit (0, (int) bank.size() - 1, si)];
     if (d == nullptr || d->empty()) return;
     Voice* best = &voices[t][0];
     for (auto& v : voices[t]) { if (! v.active) { best = &v; break; } if (v.age > best->age) best = &v; }
@@ -187,9 +207,14 @@ void EclipseProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     juce::ScopedNoDenormals nd;
     const int n = buffer.getNumSamples();
     buffer.clear();
+    keyboardState.processNextMidiBuffer (midi, 0, n, true);
     if (bank.empty()) return;
     if (dryBuf.getNumSamples() < n) { dryBuf.setSize (2, n, false, false, true); rvBuf.setSize (2, n, false, false, true); }
     dryBuf.clear(); rvBuf.clear();
+
+    for (int t = 0; t < numTracks; ++t)
+        if (previewTrig[t].exchange (false))
+            trigger (t, 0.9f, 0, FxNone);
 
     // --- transport ---
     bool hostPlaying = false, hasPpq = false, hasBpm = false; double hostPpq = 0, hostBpm = 120;
@@ -226,7 +251,10 @@ void EclipseProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     const float dlyMix = *pDlyMix;
     const float master = *pMaster;
 
-    auto* oL = buffer.getWritePointer (0); auto* oR = buffer.getWritePointer (1);
+    const int numOutCh = buffer.getNumChannels();
+    if (numOutCh < 1) return;
+    auto* oL = buffer.getWritePointer (0);
+    auto* oR = numOutCh > 1 ? buffer.getWritePointer (1) : oL;
     auto* dL = dryBuf.getWritePointer (0); auto* dR = dryBuf.getWritePointer (1);
     auto* rL = rvBuf.getWritePointer (0);  auto* rR = rvBuf.getWritePointer (1);
 
@@ -422,10 +450,11 @@ bool EclipseProcessor::loadUserSample (int t, const juce::File& file, bool selec
 {
     std::unique_ptr<juce::AudioFormatReader> reader (formats.createReaderFor (file));
     if (reader == nullptr || reader->lengthInSamples <= 0) return false;
+    const double targetSr = sr > 1000.0 ? sr : 44100.0;
     const int len = (int) std::min<juce::int64> (reader->lengthInSamples, (juce::int64) (reader->sampleRate * 20.0));
     juce::AudioBuffer<float> tmp ((int) std::max<unsigned> (1, reader->numChannels), len);
     reader->read (&tmp, 0, len, 0, true, true);
-    const double ratio = reader->sampleRate / sr;
+    const double ratio = reader->sampleRate / targetSr;
     const int outLen = std::max (16, (int) (len / ratio));
     auto out = std::make_unique<std::vector<float>> ((size_t) outLen, 0.f);
     float pk = 1e-6f;
@@ -445,8 +474,11 @@ bool EclipseProcessor::loadUserSample (int t, const juce::File& file, bool selec
     userData[t] = raw;
     userPath[t] = file.getFullPathName();
     if (selectOnLoad)
+    {
         if (auto* prm = apvts.getParameter ("t" + juce::String (t) + "_sample"))
             prm->setValueNotifyingHost (prm->convertTo0to1 ((float) numSamples));
+        triggerPreview (t);
+    }
     return true;
 }
 

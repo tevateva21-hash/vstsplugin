@@ -10,12 +10,15 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 private:
+    void setTab (int idx);
     Panel* addPanel (const juce::String& title, const juce::String& power = {});
     GuitarProcessor& proc;
     PsyLookAndFeel lnf;
     juce::TooltipWindow tooltip { this, 400 };
     PresetBar presetBar;
     Knob master;
+    TabBar tabs;
     std::vector<std::unique_ptr<Panel>> panels;
     juce::MidiKeyboardComponent keyboard;
 };
+

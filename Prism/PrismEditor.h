@@ -22,7 +22,10 @@ class FilterDisplay : public juce::Component
 public:
     explicit FilterDisplay (PrismProcessor& p) : proc (p) {}
     void paint (juce::Graphics&) override;
+    void mouseDown (const juce::MouseEvent& e) override { setFromMouse (e); }
+    void mouseDrag (const juce::MouseEvent& e) override { setFromMouse (e); }
 private:
+    void setFromMouse (const juce::MouseEvent& e);
     float magDb (int type, float f, float fc, float res) const;
     PrismProcessor& proc;
 };
@@ -48,6 +51,7 @@ public:
     void resized() override;
 private:
     void timerCallback() override { wave.repaint(); filterDisp.repaint(); seqGrid.repaint(); }
+    void setTab (int idx);
     Panel* addPanel (const juce::String& title, const juce::String& power = {});
 
     PrismProcessor& proc;
@@ -55,9 +59,11 @@ private:
     juce::TooltipWindow tooltip { this, 400 };
     PresetBar presetBar;
     Knob master;
+    TabBar tabs;
     juce::TextButton loadBtn { "LOAD SAMPLE" }, shapeBtn { "FORMES SEQ..." };
     std::unique_ptr<juce::FileChooser> chooser;
     WaveDisplay wave; FilterDisplay filterDisp; SeqGrid seqGrid;
     std::vector<std::unique_ptr<Panel>> panels;
     juce::MidiKeyboardComponent keyboard;
 };
+
