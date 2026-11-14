@@ -3,28 +3,28 @@ using namespace PsyUI;
 
 PsyLookAndFeel::PsyLookAndFeel()
 {
-    setColour (juce::ComboBox::backgroundColourId, panelHi);
+    setColour (juce::ComboBox::backgroundColourId, panel);
     setColour (juce::ComboBox::textColourId, text);
     setColour (juce::ComboBox::outlineColourId, line);
-    setColour (juce::ComboBox::arrowColourId, red);
+    setColour (juce::ComboBox::arrowColourId, redHot);
     setColour (juce::PopupMenu::backgroundColourId, panel);
     setColour (juce::PopupMenu::textColourId, text);
     setColour (juce::PopupMenu::highlightedBackgroundColourId, redDark);
     setColour (juce::PopupMenu::highlightedTextColourId, juce::Colours::white);
-    setColour (juce::TextButton::buttonColourId, panelHi);
+    setColour (juce::TextButton::buttonColourId, panel);
     setColour (juce::TextButton::buttonOnColourId, redDark);
     setColour (juce::TextButton::textColourOffId, text);
     setColour (juce::TextButton::textColourOnId, juce::Colours::white);
     setColour (juce::Label::textColourId, textDim);
     setColour (juce::Slider::textBoxTextColourId, text);
-    setColour (juce::Slider::textBoxBackgroundColourId, panelHi);
+    setColour (juce::Slider::textBoxBackgroundColourId, panel);
     setColour (juce::Slider::textBoxOutlineColourId, line);
     setColour (juce::Slider::trackColourId, red);
     setColour (juce::TooltipWindow::backgroundColourId, panel);
     setColour (juce::TooltipWindow::textColourId, text);
     setColour (juce::AlertWindow::backgroundColourId, panel);
     setColour (juce::AlertWindow::textColourId, text);
-    setColour (juce::TextEditor::backgroundColourId, panelHi);
+    setColour (juce::TextEditor::backgroundColourId, panel);
     setColour (juce::TextEditor::textColourId, text);
     setColour (juce::TextEditor::outlineColourId, line);
 }
@@ -37,51 +37,50 @@ void PsyLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int w, i
     const float rad = d * 0.5f;
     const float ang = s + pos * (e - s);
 
-    // Ticks subtils autour de la couronne
-    g.setColour (line.brighter (0.15f));
+    // Ticks sérigraphiés blanc cassé usé autour de la couronne
+    g.setColour (textDim.withAlpha (0.45f));
     for (int i = 0; i <= 10; ++i)
     {
         const float a = s + (float) i / 10.0f * (e - s);
-        const float r0 = rad - 1.0f, r1 = rad + 1.5f;
+        const float r0 = rad - 1.0f, r1 = rad + 2.0f;
         g.drawLine (c.x + std::sin (a) * r0, c.y - std::cos (a) * r0,
-                    c.x + std::sin (a) * r1, c.y - std::cos (a) * r1, 1.0f);
+                    c.x + std::sin (a) * r1, c.y - std::cos (a) * r1, 1.2f);
     }
 
-    // Piste de fond
+    // Piste de fond noir d'encre net
     juce::Path track;
     track.addCentredArc (c.x, c.y, rad - 3.5f, rad - 3.5f, 0, s, e, true);
-    g.setColour (bg.brighter (0.04f));
+    g.setColour (juce::Colours::black.withAlpha (0.6f));
     g.strokePath (track, juce::PathStrokeType (3.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
-    // Halo et arc de valeur rouge
+    // Halo et arc de valeur rouge cinéma
     juce::Path val;
     val.addCentredArc (c.x, c.y, rad - 3.5f, rad - 3.5f, 0, s, ang, true);
-    g.setColour (red.withAlpha (0.25f));
+    g.setColour (red.withAlpha (0.35f));
     g.strokePath (val, juce::PathStrokeType (6.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
     g.setColour (redHot);
     g.strokePath (val, juce::PathStrokeType (3.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
-    // Corps du potard mat avec biseau sombre
+    // Corps du potard : Noir d'encre mat avec ombre portée franche style comic et liseré gris terreux
     const float bodyRad = rad * 0.68f;
-    g.setColour (juce::Colours::black.withAlpha (0.45f));
-    g.fillEllipse (c.x - bodyRad, c.y - bodyRad + 1.5f, bodyRad * 2.0f, bodyRad * 2.0f);
-    juce::ColourGradient grad (panelHi.brighter (0.12f), c.x, c.y - bodyRad, panel.darker (0.2f), c.x, c.y + bodyRad, false);
-    g.setGradientFill (grad);
+    g.setColour (juce::Colours::black);
+    g.fillEllipse (c.x - bodyRad + 1.5f, c.y - bodyRad + 2.5f, bodyRad * 2.0f, bodyRad * 2.0f); // ombre dure
+    g.setColour (panel);
     g.fillEllipse (c.x - bodyRad, c.y - bodyRad, bodyRad * 2.0f, bodyRad * 2.0f);
-    g.setColour (line.brighter (0.2f));
-    g.drawEllipse (c.x - bodyRad, c.y - bodyRad, bodyRad * 2.0f, bodyRad * 2.0f, 1.0f);
+    g.setColour (grayEarth);
+    g.drawEllipse (c.x - bodyRad, c.y - bodyRad, bodyRad * 2.0f, bodyRad * 2.0f, 1.2f);
 
-    // Curseur lumineux
+    // Curseur lumineux rouge cinéma
     g.setColour (redHot);
-    g.drawLine (c.x + std::sin (ang) * bodyRad * 0.25f, c.y - std::cos (ang) * bodyRad * 0.25f,
-                c.x + std::sin (ang) * (bodyRad - 2.0f), c.y - std::cos (ang) * (bodyRad - 2.0f), 2.2f);
+    g.drawLine (c.x + std::sin (ang) * bodyRad * 0.20f, c.y - std::cos (ang) * bodyRad * 0.20f,
+                c.x + std::sin (ang) * (bodyRad - 2.0f), c.y - std::cos (ang) * (bodyRad - 2.0f), 2.5f);
 }
 
 void PsyLookAndFeel::drawComboBox (juce::Graphics& g, int w, int h, bool, int, int, int, int, juce::ComboBox&)
 {
     auto r = juce::Rectangle<float> (0.5f, 0.5f, (float) w - 1.0f, (float) h - 1.0f);
-    g.setColour (panelHi); g.fillRoundedRectangle (r, 4.0f);
-    g.setColour (line.brighter (0.1f)); g.drawRoundedRectangle (r, 4.0f, 1.0f);
+    g.setColour (panel); g.fillRoundedRectangle (r, 4.0f);
+    g.setColour (line); g.drawRoundedRectangle (r, 4.0f, 1.0f);
     juce::Path a; const float cx = (float) w - 11.0f, cy = h * 0.5f;
     a.addTriangle (cx - 4.0f, cy - 2.0f, cx + 4.0f, cy - 2.0f, cx, cy + 3.0f);
     g.setColour (redHot); g.fillPath (a);
@@ -91,15 +90,15 @@ void PsyLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button& b, c
 {
     auto r = b.getLocalBounds().toFloat().reduced (0.75f);
     const bool on = b.getToggleState();
-    juce::Colour base = on ? red.darker (0.15f) : (down ? panelHi.brighter (0.2f) : (over ? panelHi.brighter (0.12f) : panelHi));
+    juce::Colour base = on ? redDark : (down ? juce::Colours::black : (over ? panelHi : panel));
     if (on)
     {
-        g.setColour (red.withAlpha (0.22f));
+        g.setColour (red.withAlpha (0.3f));
         g.fillRoundedRectangle (r.expanded (1.0f), 4.5f);
     }
     g.setColour (base);
     g.fillRoundedRectangle (r, 4.0f);
-    g.setColour (on ? redHot : (over ? line.brighter (0.3f) : line));
+    g.setColour (on ? redHot : (over ? textDim : line));
     g.drawRoundedRectangle (r, 4.0f, 1.0f);
 }
 
@@ -107,9 +106,11 @@ void PsyLookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, int w, i
 {
     if (style != juce::Slider::LinearHorizontal) { LookAndFeel_V4::drawLinearSlider (g, x, y, w, h, pos, 0, 0, style, s); return; }
     const float cy = y + h * 0.5f;
-    g.setColour (bg); g.fillRoundedRectangle ((float) x, cy - 2.5f, (float) w, 5.0f, 2.5f);
-    g.setColour (red); g.fillRoundedRectangle ((float) x, cy - 2.5f, std::max (0.0f, pos - x), 5.0f, 2.5f);
-    g.setColour (redHot); g.fillRoundedRectangle (pos - 4.0f, cy - 8.0f, 8.0f, 16.0f, 3.0f);
+    g.setColour (juce::Colours::black); g.fillRoundedRectangle ((float) x, cy - 2.5f, (float) w, 5.0f, 2.5f);
+    g.setColour (line); g.drawRoundedRectangle ((float) x, cy - 2.5f, (float) w, 5.0f, 2.5f, 1.0f);
+    g.setColour (red); g.fillRoundedRectangle ((float) x, cy - 2.0f, std::max (0.0f, pos - x), 4.0f, 2.0f);
+    g.setColour (redHot); g.fillRoundedRectangle (pos - 4.0f, cy - 8.0f, 8.0f, 16.0f, 2.5f);
+    g.setColour (text); g.drawRoundedRectangle (pos - 4.0f, cy - 8.0f, 8.0f, 16.0f, 2.5f, 1.0f);
 }
 
 Knob::Knob (juce::AudioProcessorValueTreeState& s, const juce::String& id, const juce::String& name, bool withLabel) : hasLabel (withLabel)
@@ -208,23 +209,31 @@ int Panel::preferredWidth() const
 void Panel::paint (juce::Graphics& g)
 {
     auto r = getLocalBounds().toFloat();
+    // Ombre décalée franche style comic book (sans flou, pas d'anthracite lourd)
+    g.setColour (juce::Colours::black);
+    g.fillRoundedRectangle (r.translated (1.5f, 2.5f), 5.0f);
+
+    // Façade de module noir d'encre épurée
     g.setColour (PsyUI::panel);
-    g.fillRoundedRectangle (r, 6.0f);
+    g.fillRoundedRectangle (r, 5.0f);
+
+    // Contour d'encrage franc
+    g.setColour (line);
+    g.drawRoundedRectangle (r.reduced (0.5f), 5.0f, 1.0f);
 
     // Bandeau de titre en haut du panneau
     auto head = r.removeFromTop (24.0f);
-    g.setColour (panelHi.withAlpha (0.7f));
-    g.fillRoundedRectangle (head.getX() + 1.0f, head.getY() + 1.0f, head.getWidth() - 2.0f, head.getHeight(), 5.0f);
+    g.setColour (panelHi.withAlpha (0.6f));
+    g.fillRoundedRectangle (head.getX() + 1.0f, head.getY() + 1.0f, head.getWidth() - 2.0f, head.getHeight(), 4.0f);
     g.setColour (red);
-    g.fillRoundedRectangle (head.getX() + 8.0f, head.getY() + 6.0f, 3.0f, 12.0f, 1.5f);
+    g.fillRoundedRectangle (head.getX() + 8.0f, head.getY() + 5.0f, 3.5f, 14.0f, 1.5f);
 
     g.setColour (line);
-    g.drawRoundedRectangle (getLocalBounds().toFloat().reduced (0.5f), 6.0f, 1.0f);
     g.drawHorizontalLine (24, 1.0f, (float) getWidth() - 1.0f);
 
     g.setColour (text);
     g.setFont (juce::Font (juce::FontOptions (12.0f).withStyle ("Bold")));
-    g.drawText (title, 17, 4, getWidth() - (hasPower ? 64 : 24), 16, juce::Justification::centredLeft);
+    g.drawText (title, 18, 4, getWidth() - (hasPower ? 64 : 24), 16, juce::Justification::centredLeft);
 }
 void Panel::resized()
 {

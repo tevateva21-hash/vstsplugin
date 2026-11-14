@@ -1,18 +1,20 @@
 #pragma once
 #include <juce_audio_processors/juce_audio_processors.h>
 
-// Charte graphique commune : noir et rouge, sobre, mat et lisible.
+// Charte graphique commune : Noir d'encre, Rouge Cinema, Blanc casse use, avec usage reduit de l'anthracite
 namespace PsyUI
 {
-const juce::Colour bg       (0xff0b0b0d);
-const juce::Colour panel    (0xff141418);
-const juce::Colour panelHi  (0xff1e1e24);
-const juce::Colour line     (0xff2c2c34);
-const juce::Colour red      (0xffcc1824);
-const juce::Colour redDark  (0xff660d13);
-const juce::Colour redHot   (0xffff3340);
-const juce::Colour text     (0xffdedee4);
-const juce::Colour textDim  (0xff8c8c96);
+const juce::Colour bg         (0xff121113); // Noir d'encre profond (fond general aeré)
+const juce::Colour panel      (0xff181717); // Noir d'encre sobre (evite les lourds blocs anthracites)
+const juce::Colour panelHi    (0xff222020); // Subtile surbrillance pour bandeaux
+const juce::Colour anthracite (0xff302e2e); // Anthracite restreint aux ombres / details secondaires
+const juce::Colour grayEarth  (0xff65615f); // Gris moyen terreux (rails de potentiometres, vis)
+const juce::Colour line       (0xff363433); // Lignes d'encrage fines
+const juce::Colour red        (0xffff1b24); // Rouge vibrant "Cinema"
+const juce::Colour redDark    (0xff7a0d13); // Rouge fonce (etat clique / fond actif sombre)
+const juce::Colour redHot     (0xffff2e38); // Rouge ecarlate (LED active, indicateurs)
+const juce::Colour text       (0xffede7e1); // Blanc casse use (grande clarte et lisibilite)
+const juce::Colour textDim    (0xffa29c96); // Blanc casse attenue (sous-titres et reperes)
 }
 
 class PsyLookAndFeel : public juce::LookAndFeel_V4

@@ -327,14 +327,25 @@ void EclipseEditor::setTab (int idx)
 
 void EclipseEditor::panelBox (juce::Graphics& g, juce::Rectangle<int> r, const juce::String& title)
 {
-    g.setColour (panel); g.fillRoundedRectangle (r.toFloat(), 6.0f);
-    auto head = r.toFloat().removeFromTop (24.0f);
-    g.setColour (panelHi.withAlpha (0.7f));
-    g.fillRoundedRectangle (head.getX() + 1.0f, head.getY() + 1.0f, head.getWidth() - 2.0f, head.getHeight(), 5.0f);
+    auto rf = r.toFloat();
+    // Ombre décalée franche style comic book
+    g.setColour (juce::Colours::black);
+    g.fillRoundedRectangle (rf.translated (1.5f, 2.5f), 5.0f);
+
+    // Fond noir d'encre épuré (pas de pavé anthracite massif)
+    g.setColour (panel);
+    g.fillRoundedRectangle (rf, 5.0f);
+
+    auto head = rf.removeFromTop (24.0f);
+    g.setColour (panelHi.withAlpha (0.6f));
+    g.fillRoundedRectangle (head.getX() + 1.0f, head.getY() + 1.0f, head.getWidth() - 2.0f, head.getHeight(), 4.0f);
     g.setColour (red);
-    g.fillRoundedRectangle (head.getX() + 8.0f, head.getY() + 6.0f, 3.0f, 12.0f, 1.5f);
-    g.setColour (line); g.drawRoundedRectangle (r.toFloat().reduced (0.5f), 6.0f, 1.0f);
-    g.setColour (text); g.setFont (juce::Font (juce::FontOptions (12.0f).withStyle ("Bold")));
+    g.fillRoundedRectangle (head.getX() + 8.0f, head.getY() + 5.0f, 3.5f, 14.0f, 1.5f);
+
+    g.setColour (line);
+    g.drawRoundedRectangle (rf.reduced (0.5f), 5.0f, 1.0f);
+    g.setColour (text);
+    g.setFont (juce::Font (juce::FontOptions (12.0f).withStyle ("Bold")));
     g.drawText (title, r.getX() + 18, r.getY() + 4, 340, 16, juce::Justification::centredLeft);
 }
 
